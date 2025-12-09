@@ -1,23 +1,18 @@
 <?php
 include 'config.php';
 
-// Ambil data admin berdasarkan session
 $user_id = $_SESSION['id_user'];
 $user_result = $conn->query("SELECT * FROM users WHERE id_user = $user_id LIMIT 1");
 $admin = $user_result->fetch_assoc();
-
-// Update profil jika ada data POST
 $success = '';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Update informasi profil
+  
     if (isset($_POST['update_profil'])) {
         $nama = $_POST['nama'];
         $username = $_POST['username'];
         $phone_number = $_POST['phone_number'] ?? '';
-        
-        // Cek jika username sudah digunakan oleh user lain
         $check_username = $conn->prepare("SELECT id_user FROM users WHERE username = ? AND id_user != ?");
         $check_username->bind_param("si", $username, $user_id);
         $check_username->execute();
@@ -32,7 +27,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             if ($stmt->execute()) {
                 $success = "Profil berhasil diperbarui!";
                 $_SESSION['nama'] = $nama;
-                // Refresh data
                 $user_result = $conn->query("SELECT * FROM users WHERE id_user = $user_id LIMIT 1");
                 $admin = $user_result->fetch_assoc();
             } else {
@@ -41,7 +35,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
     
-    // Update password
     if (isset($_POST['update_password'])) {
         $password_lama = $_POST['password_lama'];
         $password_baru = $_POST['password_baru'];
@@ -71,7 +64,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
     
-    // Handle upload foto profil
     if (isset($_FILES['foto_profil']) && $_FILES['foto_profil']['error'] === UPLOAD_ERR_OK) {
         $upload_dir = 'uploads/profil/';
         
@@ -113,7 +105,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
     
-    // Hapus foto profil
     if (isset($_POST['hapus_foto'])) {
         if (!empty($admin['profile_picture']) && file_exists($admin['profile_picture'])) {
             unlink($admin['profile_picture']);
@@ -171,7 +162,6 @@ $foto_profil = !empty($admin['profile_picture']) ? $admin['profile_picture'] : '
     </style>
 </head>
 <body class="bg-antique-white">
-    <!-- Sidebar -->
     <div class="fixed inset-y-0 left-0 w-64 sidebar shadow-xl">
         <div class="flex items-center justify-center h-16 bg-pale-taupe">
             <div class="text-white">
@@ -227,9 +217,7 @@ $foto_profil = !empty($admin['profile_picture']) ? $admin['profile_picture'] : '
         </div>
     </div>
 
-    <!-- Main Content -->
     <div class="ml-64">
-        <!-- Header -->
         <header class="bg-white shadow-sm border-b border-pale-taupe">
             <div class="flex items-center justify-between px-8 py-4">
                 <div>
@@ -255,7 +243,6 @@ $foto_profil = !empty($admin['profile_picture']) ? $admin['profile_picture'] : '
         </header>
 
         <main class="p-8">
-            <!-- Notifikasi -->
             <?php if (!empty($success)): ?>
             <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center">
                 <i class="fas fa-check-circle text-green-500 text-lg mr-3"></i>
@@ -277,9 +264,7 @@ $foto_profil = !empty($admin['profile_picture']) ? $admin['profile_picture'] : '
             <?php endif; ?>
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <!-- Kolom Kiri - Informasi Profil -->
                 <div class="lg:col-span-2 space-y-6">
-                    <!-- Card Foto Profil -->
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                         <h3 class="text-lg font-semibold text-gray-800 mb-6">Foto Profil</h3>
                         <div class="flex flex-col md:flex-row items-center space-y-6 md:space-y-0 md:space-x-8">
@@ -323,7 +308,6 @@ $foto_profil = !empty($admin['profile_picture']) ? $admin['profile_picture'] : '
                         </div>
                     </div>
 
-                    <!-- Card Informasi Profil -->
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                         <div class="flex items-center justify-between mb-6">
                             <h3 class="text-lg font-semibold text-gray-800">Informasi Profil</h3>
@@ -367,8 +351,6 @@ $foto_profil = !empty($admin['profile_picture']) ? $admin['profile_picture'] : '
                             </div>
                         </form>
                     </div>
-
-                    <!-- Card Ubah Password -->
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                         <h3 class="text-lg font-semibold text-gray-800 mb-6">Ubah Password</h3>
                         
@@ -399,9 +381,7 @@ $foto_profil = !empty($admin['profile_picture']) ? $admin['profile_picture'] : '
                     </div>
                 </div>
 
-                <!-- Kolom Kanan - Statistik & Info -->
                 <div class="space-y-6">
-                    <!-- Card Profil Summary -->
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                         <div class="text-center">
                             <div class="w-20 h-20 rounded-full overflow-hidden border-4 border-white shadow-lg mx-auto mb-4">
@@ -448,7 +428,6 @@ $foto_profil = !empty($admin['profile_picture']) ? $admin['profile_picture'] : '
                         </div>
                     </div>
 
-                    <!-- Card Aktivitas Terbaru -->
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                         <h3 class="text-lg font-semibold text-gray-800 mb-4">Aktivitas Terbaru</h3>
                         <div class="space-y-4">
@@ -482,7 +461,6 @@ $foto_profil = !empty($admin['profile_picture']) ? $admin['profile_picture'] : '
                         </div>
                     </div>
 
-                    <!-- Card Quick Actions -->
                     <div class="bg-gradient-to-r from-pale-taupe to-amber-800 rounded-xl shadow-lg p-6 text-white">
                         <h3 class="text-lg font-semibold mb-4">Aksi Cepat</h3>
                         <div class="space-y-3">

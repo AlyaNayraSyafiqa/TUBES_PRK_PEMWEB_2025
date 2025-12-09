@@ -1,61 +1,53 @@
 <?php
-include '../config.php';
+include 'config.php';
 
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
-    header("Location: ../index.php");
+
+$users_result = $conn->query("SELECT * FROM users ORDER BY id_user");
+$total_users = $users_result->num_rows;
+$owner_count = $conn->query("SELECT COUNT(*) as total FROM users WHERE role = 'owner'")->fetch_assoc()['total'];
+$admin_count = $conn->query("SELECT COUNT(*) as total FROM users WHERE role = 'admin'")->fetch_assoc()['total'];
+$kasir_count = $conn->query("SELECT COUNT(*) as total FROM users WHERE role = 'kasir'")->fetch_assoc()['total'];
+
+
+$users_result->data_seek(0);
+
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['tambah_user'])) {
+    $username = $_POST['username'];
+    $password = $_POST['password'];
+    $role = $_POST['role'];
+    $nama = $_POST['nama'];
+    $phone_number = $_POST['phone_number'] ?? NULL;
+    
+    $hashed_password = md5($password);
+    
+    $stmt = $conn->prepare("INSERT INTO users (username, password, role, nama, phone_number) VALUES (?, ?, ?, ?, ?)");
+    $stmt->bind_param("sssss", $username, $hashed_password, $role, $nama, $phone_number);
+    
+    if ($stmt->execute()) {
+        $success = "Pengguna berhasil ditambahkan!";
+    } else {
+        $error = "Gagal menambahkan pengguna!";
+    }
+    header("Location: manajemen_pengguna.php");
     exit();
 }
 
-$success = '';
-$error = '';
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    if (isset($_POST['add'])) {
-        $nama = $conn->real_escape_string($_POST['nama']);
-        $username = $conn->real_escape_string($_POST['username']);
-        $password = $_POST['password'];
-        $role = $_POST['role'];
-
-        $check = $conn->query("SELECT id_user FROM users WHERE username = '$username'");
-        if ($check->num_rows > 0) {
-            $error = "Username sudah ada!";
-        } else {
-            $sql = "INSERT INTO users (nama, username, password, role) VALUES ('$nama', '$username', '$password', '$role')";
-            if ($conn->query($sql)) {
-                $success = "Pengguna berhasil ditambahkan.";
-            } else {
-                $error = "Gagal menambahkan pengguna.";
-            }
-        }
-    } elseif (isset($_POST['edit'])) {
-        $id = $_POST['id_user'];
-        $nama = $conn->real_escape_string($_POST['nama']);
-        $username = $conn->real_escape_string($_POST['username']);
-        $role = $_POST['role'];
-        $password = $_POST['password'];
-
-        $sql = "UPDATE users SET nama='$nama', username='$username', role='$role'";
-        if (!empty($password)) {
-            $sql .= ", password='$password'";
-        }
-        $sql .= " WHERE id_user=$id";
-
-        if ($conn->query($sql)) {
-            $success = "Pengguna berhasil diperbarui.";
-        } else {
-            $error = "Gagal memperbarui pengguna.";
-        }
-    } elseif (isset($_POST['delete'])) {
-        $id = $_POST['id_user'];
-        if ($conn->query("DELETE FROM users WHERE id_user=$id")) {
-            $success = "Pengguna berhasil dihapus.";
-        } else {
-            $error = "Gagal menghapus pengguna.";
-        }
+if (isset($_GET['hapus'])) {
+    $id_user = $_GET['hapus'];
+    $check_user = $conn->query("SELECT role FROM users WHERE id_user = $id_user")->fetch_assoc();
+    if ($check_user['role'] != 'owner') {
+        $conn->query("DELETE FROM users WHERE id_user = $id_user");
     }
+    header("Location: manajemen_pengguna.php");
+    exit();
 }
 
-$users = $conn->query("SELECT * FROM users ORDER BY id_user DESC");
+$admin_id = $_SESSION['id_user'];
+$admin = $conn->query("SELECT * FROM users WHERE id_user = $admin_id")->fetch_assoc();
+$default_avatar = 'https://ui-avatars.com/api/?name=' . urlencode($admin['nama'] ?? 'Admin');
+$foto_profil = !empty($admin['profile_picture']) ? '../' . $admin['profile_picture'] : $default_avatar;
 ?>
 
 <!DOCTYPE html>
@@ -79,151 +71,206 @@ $users = $conn->query("SELECT * FROM users ORDER BY id_user DESC");
                 }
             }
         }
-        function openEditModal(user) {
-            document.getElementById('edit_id_user').value = user.id_user;
-            document.getElementById('edit_nama').value = user.nama;
-            document.getElementById('edit_username').value = user.username;
-            document.getElementById('edit_role').value = user.role;
-            document.getElementById('editModal').classList.remove('hidden');
-        }
-        function closeEditModal() {
-            document.getElementById('editModal').classList.add('hidden');
-        }
-        function openAddModal() {
-            document.getElementById('addModal').classList.remove('hidden');
-        }
-        function closeAddModal() {
-            document.getElementById('addModal').classList.add('hidden');
-        }
     </script>
     <style>
-        .glass-effect {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-        }
-        .sidebar-gradient {
-            background: #B7A087; /* Solid color instead of gradient */
-        }
+        body { background-color: #F7EBDF; }
+        .sidebar { background: linear-gradient(to bottom, #B7A087, #8B7355); }
+        .card { background: white; border: 1px solid #E5D9C8; }
+        .btn-primary { background-color: #B7A087; color: white; }
+        .btn-primary:hover { background-color: #8B7355; }
     </style>
 </head>
-<body class="bg-gray-50 flex h-screen overflow-hidden font-sans">
-    <!-- Sidebar -->
-    <div class="w-64 sidebar-gradient text-white flex flex-col shadow-2xl transition-all duration-300">
-        <div class="h-20 flex items-center justify-center font-bold text-2xl border-b border-white/10 tracking-wide">
-            <i class="fas fa-utensils mr-3 opacity-80"></i> EasyResto
+<body class="bg-antique-white">
+    <div class="fixed inset-y-0 left-0 w-64 sidebar shadow-xl flex flex-col justify-between">
+        <div>
+            <div class="flex items-center justify-center h-16 bg-pale-taupe">
+                <div class="text-white text-center">
+                    <h1 class="text-xl font-bold">EasyResto</h1>
+                    <p class="text-xs text-white opacity-90">Admin Panel</p>
+                </div>
+            </div>
+            
+            <nav class="mt-8">
+                <a href="dashboard.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-chart-line w-6"></i>
+                    <span class="mx-3 font-medium">Dashboard</span>
+                </a>
+                <a href="manajemen_pengguna.php" class="flex items-center px-6 py-3 text-white bg-pale-taupe bg-opacity-40 border-l-4 border-white">
+                    <i class="fas fa-users w-6"></i>
+                    <span class="mx-3 font-medium">Manajemen Pengguna</span>
+                </a>
+                <a href="manajemen_menu.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-utensils w-6"></i>
+                    <span class="mx-3 font-medium">Manajemen Menu</span>
+                </a>
+                <a href="manajemen_transaksi.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-cash-register w-6"></i>
+                    <span class="mx-3 font-medium">Manajemen Transaksi</span>
+                </a>
+                <a href="laporan_penjualan.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-file-invoice-dollar w-6"></i>
+                    <span class="mx-3 font-medium">Laporan Penjualan</span>
+                </a>
+                <a href="profil.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-user-cog w-6"></i>
+                    <span class="mx-3 font-medium">Profil</span>
+                </a>
+            </nav>
         </div>
-        <nav class="flex-1 overflow-y-auto py-6 space-y-1">
-            <a href="dashboard.php" class="flex items-center px-6 py-4 hover:bg-white/10 hover:translate-x-1 transition-all duration-200 text-white/90">
-                <i class="fas fa-chart-pie w-6 text-lg"></i>
-                <span class="mx-3 font-medium">Dashboard</span>
-            </a>
-            <a href="manajemen_pengguna.php" class="flex items-center px-6 py-4 bg-white/20 border-l-4 border-white transition-all duration-200">
-                <i class="fas fa-users w-6 text-lg"></i>
-                <span class="mx-3 font-medium">Kelola Pengguna</span>
-            </a>
-            <a href="manajemen_menu.php" class="flex items-center px-6 py-4 hover:bg-white/10 hover:translate-x-1 transition-all duration-200 text-white/90">
-                <i class="fas fa-book-open w-6 text-lg"></i>
-                <span class="mx-3 font-medium">Kelola Menu</span>
-            </a>
-            <a href="manajemen_transaksi.php" class="flex items-center px-6 py-4 hover:bg-white/10 hover:translate-x-1 transition-all duration-200 text-white/90">
-                <i class="fas fa-receipt w-6 text-lg"></i>
-                <span class="mx-3 font-medium">Transaksi</span>
-            </a>
-            <a href="laporan_penjualan.php" class="flex items-center px-6 py-4 hover:bg-white/10 hover:translate-x-1 transition-all duration-200 text-white/90">
-                <i class="fas fa-file-invoice-dollar w-6 text-lg"></i>
-                <span class="mx-3 font-medium">Laporan</span>
-            </a>
-        </nav>
-        <div class="p-6 border-t border-white/10">
-            <a href="../logout.php" class="flex items-center justify-center px-4 py-3 bg-red-500/80 hover:bg-red-600 rounded-xl shadow-lg transition-all duration-200 transform hover:scale-105 backdrop-blur-sm">
-                <i class="fas fa-sign-out-alt mr-2"></i> Logout
-            </a>
+        
+        <div class="p-4 bg-pale-taupe bg-opacity-80">
+            <div class="flex items-center gap-3">
+                <img src="<?= $foto_profil ?>" class="w-10 h-10 rounded-full border-2 border-white object-cover">
+                <div class="overflow-hidden text-white">
+                    <p class="font-bold text-sm truncate leading-tight"><?= htmlspecialchars($_SESSION['nama']) ?></p>
+                    <p class="text-xs opacity-90">Role: Admin</p>
+                    <a href="../logout.php" class="text-xs text-red-200 hover:text-white flex items-center gap-1 mt-1 transition-colors">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </a>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Main Content -->
-    <div class="flex-1 flex flex-col overflow-hidden bg-gray-50/50">
-        <header class="bg-white shadow-sm z-10 px-8 py-5 flex justify-between items-center glass-effect sticky top-0">
-            <div>
-                <h2 class="text-2xl font-bold text-gray-800">Manajemen Pengguna</h2>
-                <p class="text-sm text-gray-500">Kelola data pengguna sistem</p>
+    <div class="ml-64">
+        <header class="bg-white shadow-sm border-b border-pale-taupe">
+            <div class="flex items-center justify-between px-8 py-4">
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-800">Manajemen Pengguna</h1>
+                    <p class="text-gray-600">Kelola akses pengguna sistem</p>
+                </div>
+                <button onclick="openAddModal()" class="flex items-center px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors">
+                    <i class="fas fa-user-plus mr-2"></i>
+                    Tambah Pengguna
+                </button>
             </div>
-            <a href="edit_profil.php" class="flex items-center space-x-4 hover:bg-gray-50 p-2 rounded-lg transition-colors cursor-pointer group">
-                <div class="flex flex-col text-right mr-2">
-                    <span class="text-sm font-semibold text-gray-700 group-hover:text-amber-800 transition-colors"><?php echo $_SESSION['nama']; ?></span>
-                    <span class="text-xs text-pale-taupe font-medium uppercase tracking-wider">Administrator</span>
-                </div>
-                <!-- Profile Picture with fallback -->
-                <div class="w-12 h-12 rounded-full bg-pale-taupe flex items-center justify-center text-white font-bold text-lg shadow-md ring-2 ring-offset-2 ring-pale-taupe overflow-hidden">
-                    <?php if (!empty($_SESSION['profile_picture']) && file_exists('../' . $_SESSION['profile_picture'])): ?>
-                        <img src="../<?php echo $_SESSION['profile_picture']; ?>" alt="Profile" class="w-full h-full object-cover">
-                    <?php else: ?>
-                        <?php echo substr($_SESSION['nama'], 0, 1); ?>
-                    <?php endif; ?>
-                </div>
-            </a>
         </header>
 
-        <main class="flex-1 overflow-x-hidden overflow-y-auto p-8 scroll-smooth">
-            <?php if ($success): ?>
-                    <?php echo $success; ?>
+        <main class="p-8">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-gradient-to-r from-pale-taupe to-amber-800 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-transform">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-white text-sm font-medium">Total Pengguna</p>
+                            <p class="text-2xl font-bold"><?php echo $total_users; ?></p>
+                        </div>
+                        <i class="fas fa-users text-2xl opacity-80"></i>
+                    </div>
                 </div>
-            <?php endif; ?>
-            <?php if ($error): ?>
-                <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
-                    <?php echo $error; ?>
+                <div class="bg-gradient-to-r from-yellow-500 to-yellow-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-transform">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-yellow-100 text-sm font-medium">Owner</p>
+                            <p class="text-2xl font-bold"><?php echo $owner_count; ?></p>
+                        </div>
+                        <i class="fas fa-crown text-2xl opacity-80"></i>
+                    </div>
                 </div>
-            <?php endif; ?>
+                <div class="bg-gradient-to-r from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-transform">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-green-100 text-sm font-medium">Admin</p>
+                            <p class="text-2xl font-bold"><?php echo $admin_count; ?></p>
+                        </div>
+                        <i class="fas fa-user-shield text-2xl opacity-80"></i>
+                    </div>
+                </div>
+                <div class="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-transform">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-purple-100 text-sm font-medium">Kasir</p>
+                            <p class="text-2xl font-bold"><?php echo $kasir_count; ?></p>
+                        </div>
+                        <i class="fas fa-cash-register text-2xl opacity-80"></i>
+                    </div>
+                </div>
+            </div>
 
-            <div class="bg-white rounded-xl shadow p-6">
-                <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-lg font-semibold text-gray-800">Daftar Pengguna</h3>
-                    <button onclick="openAddModal()" class="bg-pale-taupe hover:bg-opacity-90 text-white px-4 py-2 rounded shadow transition-colors">
-                        <i class="fas fa-plus mr-2"></i> Tambah Pengguna
-                    </button>
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-800">Daftar Pengguna</h3>
+                            <p class="text-sm text-gray-600">Semua pengguna yang memiliki akses ke sistem (Total: <?php echo $total_users; ?> pengguna)</p>
+                        </div>
+                    </div>
                 </div>
-
                 <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse">
-                        <thead>
+                    <table class="w-full">
+                        <thead class="bg-gray-50">
                             <tr>
-                                <th class="py-3 border-b text-gray-600">ID</th>
-                                <th class="py-3 border-b text-gray-600">Nama</th>
-                                <th class="py-3 border-b text-gray-600">Username</th>
-                                <th class="py-3 border-b text-gray-600">Role</th>
-                                <th class="py-3 border-b text-gray-600">Aksi</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Pengguna</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Username</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Role</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Telepon</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Aksi</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <?php while($user = $users->fetch_assoc()): ?>
-                            <tr class="hover:bg-gray-50">
-                                <td class="py-3 border-b">#<?php echo $user['id_user']; ?></td>
-                                <td class="py-3 border-b"><?php echo htmlspecialchars($user['nama']); ?></td>
-                                <td class="py-3 border-b"><?php echo htmlspecialchars($user['username']); ?></td>
-                                <td class="py-3 border-b">
-                                    <span class="px-2 py-1 rounded text-xs font-semibold
-                                        <?php 
-                                            echo $user['role'] == 'admin' ? 'bg-purple-100 text-purple-800' :
-                                                ($user['role'] == 'owner' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800');
-                                        ?>">
-                                        <?php echo ucfirst($user['role']); ?>
-                                    </span>
-                                </td>
-                                <td class="py-3 border-b">
-                                    <button onclick='openEditModal(<?php echo json_encode($user); ?>)' class="text-blue-500 hover:text-blue-700 mr-2">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                    <?php if ($user['id_user'] != $_SESSION['id_user']): ?>
-                                    <form method="POST" class="inline" onsubmit="return confirm('Yakin ingin menghapus pengguna ini?');">
-                                        <input type="hidden" name="id_user" value="<?php echo $user['id_user']; ?>">
-                                        <button type="submit" name="delete" class="text-red-500 hover:text-red-700">
-                                            <i class="fas fa-trash"></i>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <?php if ($total_users > 0): ?>
+                                <?php while ($user = $users_result->fetch_assoc()): ?>
+                                <tr class="hover:bg-pale-taupe hover:bg-opacity-10 transition-colors group">
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="text-sm font-medium text-gray-900 bg-gray-100 px-2 py-1 rounded">#<?php echo $user['id_user']; ?></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center">
+                                            <div class="flex-shrink-0 h-10 w-10 bg-gradient-to-r from-pale-taupe to-amber-800 rounded-full flex items-center justify-center">
+                                                <i class="fas fa-user text-white text-sm"></i>
+                                            </div>
+                                            <div class="ml-4">
+                                                <div class="text-sm font-medium text-gray-900"><?php echo $user['nama'] ?: 'User #' . $user['id_user']; ?></div>
+                                                <div class="text-xs text-gray-500">ID: <?php echo $user['id_user']; ?></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm text-gray-900 font-medium"><?php echo $user['username']; ?></div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <?php
+                                        $role_data = [
+                                            'owner' => ['color' => 'bg-yellow-100 text-yellow-800 border-yellow-200', 'icon' => 'fa-crown'],
+                                            'admin' => ['color' => 'bg-green-100 text-green-800 border-green-200', 'icon' => 'fa-user-shield'],
+                                            'kasir' => ['color' => 'bg-purple-100 text-purple-800 border-purple-200', 'icon' => 'fa-cash-register']
+                                        ];
+                                        $role_info = $role_data[$user['role']] ?? $role_data['kasir'];
+                                        ?>
+                                        <span class="inline-flex px-3 py-1 text-xs font-semibold rounded-full border <?php echo $role_info['color']; ?>">
+                                            <i class="fas <?php echo $role_info['icon']; ?> mr-1"></i>
+                                            <?php echo ucfirst($user['role']); ?>
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm text-gray-900"><?php echo $user['phone_number'] ?: '-'; ?></div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="inline-flex px-3 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 border border-green-200">
+                                            <i class="fas fa-check mr-1"></i>Aktif
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                        <?php if ($user['role'] != 'owner'): ?>
+                                        <button onclick="hapusUser(<?php echo $user['id_user']; ?>)" class="text-red-600 hover:text-red-900 transition-colors">
+                                            <i class="fas fa-trash mr-1"></i>Hapus
                                         </button>
-                                    </form>
-                                    <?php endif; ?>
-                                </td>
-                            </tr>
-                            <?php endwhile; ?>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                                <?php endwhile; ?>
+                            <?php else: ?>
+                                <tr>
+                                    <td colspan="7" class="px-6 py-12 text-center">
+                                        <div class="flex flex-col items-center justify-center">
+                                            <i class="fas fa-users text-4xl text-gray-400 mb-4"></i>
+                                            <h3 class="text-lg font-medium text-gray-900 mb-2">Belum ada pengguna</h3>
+                                            <p class="text-gray-600 mb-4">Tambahkan pengguna pertama Anda untuk memulai.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endif; ?>
                         </tbody>
                     </table>
                 </div>
@@ -231,71 +278,81 @@ $users = $conn->query("SELECT * FROM users ORDER BY id_user DESC");
         </main>
     </div>
 
-    <div id="addModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <h3 class="text-lg font-bold mb-4">Tambah Pengguna</h3>
+    <div id="addModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+        <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-xl bg-white">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-lg font-semibold text-gray-800">Tambah Pengguna Baru</h3>
+                <button onclick="closeAddModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <i class="fas fa-times text-lg"></i>
+                </button>
+            </div>
             <form method="POST">
-                <input type="hidden" name="add" value="1">
-                <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-bold mb-2">Nama</label>
-                    <input type="text" name="nama" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Nama Lengkap *</label>
+                        <input type="text" name="nama" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors" placeholder="Contoh: John Doe">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Username *</label>
+                        <input type="text" name="username" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors" placeholder="Contoh: johndoe">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Password *</label>
+                        <input type="password" name="password" required minlength="6" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors" placeholder="Minimal 6 karakter">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Nomor Telepon</label>
+                        <input type="tel" name="phone_number" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors" placeholder="Contoh: 081234567890">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Role *</label>
+                        <select name="role" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors">
+                            <option value="">Pilih Role</option>
+                            <option value="admin">Admin</option>
+                            <option value="kasir">Kasir</option>
+                            <option value="owner">Owner</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-bold mb-2">Username</label>
-                    <input type="text" name="username" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
-                </div>
-                <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-bold mb-2">Password</label>
-                    <input type="password" name="password" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
-                </div>
-                <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-bold mb-2">Role</label>
-                    <select name="role" class="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
-                        <option value="kasir">Kasir</option>
-                        <option value="owner">Owner</option>
-                        <option value="admin">Admin</option>
-                    </select>
-                </div>
-                <div class="flex justify-end">
-                    <button type="button" onclick="closeAddModal()" class="bg-gray-500 text-white px-4 py-2 rounded mr-2 hover:bg-gray-600">Batal</button>
-                    <button type="submit" class="bg-pale-taupe text-white px-4 py-2 rounded hover:bg-opacity-90">Simpan</button>
+                <div class="flex justify-end space-x-3 mt-8">
+                    <button type="button" onclick="closeAddModal()" class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">Batal</button>
+                    <button type="submit" name="tambah_user" class="px-4 py-2 text-white bg-pale-taupe rounded-lg hover:bg-amber-800 transition-colors">
+                        <i class="fas fa-user-plus mr-2"></i>Tambah Pengguna
+                    </button>
                 </div>
             </form>
         </div>
     </div>
 
-    <div id="editModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <h3 class="text-lg font-bold mb-4">Edit Pengguna</h3>
-            <form method="POST">
-                <input type="hidden" name="edit" value="1">
-                <input type="hidden" name="id_user" id="edit_id_user">
-                <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-bold mb-2">Nama</label>
-                    <input type="text" name="nama" id="edit_nama" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
-                </div>
-                <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-bold mb-2">Username</label>
-                    <input type="text" name="username" id="edit_username" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
-                </div>
-                <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-bold mb-2">Password (Kosongkan jika tidak diubah)</label>
-                    <input type="password" name="password" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
-                </div>
-                <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-bold mb-2">Role</label>
-                    <select name="role" id="edit_role" class="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
-                        <option value="kasir">Kasir</option>
-                        <option value="owner">Owner</option>
-                        <option value="admin">Admin</option>
-                    </select>
-                </div>
-                <div class="flex justify-end">
-                    <button type="button" onclick="closeEditModal()" class="bg-gray-500 text-white px-4 py-2 rounded mr-2 hover:bg-gray-600">Batal</button>
-                    <button type="submit" class="bg-pale-taupe text-white px-4 py-2 rounded hover:bg-opacity-90">Simpan</button>
-                </div>
-            </form>
-        </div>
-    </div>
+    <script>
+        function openAddModal() {
+            document.getElementById('addModal').classList.remove('hidden');
+            document.getElementById('addModal').classList.add('flex');
+        }
+
+        function closeAddModal() {
+            document.getElementById('addModal').classList.add('hidden');
+            document.getElementById('addModal').classList.remove('flex');
+        }
+
+        function hapusUser(id) {
+            if (confirm('Apakah Anda yakin ingin menghapus pengguna ini?\nTindakan ini tidak dapat dibatalkan.')) {
+                window.location.href = 'manajemen_pengguna.php?hapus=' + id;
+            }
+        }
+
+        window.onclick = function(event) {
+            const modal = document.getElementById('addModal');
+            if (event.target === modal) {
+                closeAddModal();
+            }
+        }
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeAddModal();
+            }
+        });
+    </script>
 </body>
 </html>

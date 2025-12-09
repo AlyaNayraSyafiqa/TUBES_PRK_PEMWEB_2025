@@ -1,14 +1,29 @@
 <?php
-include '../config.php';
+include 'config.php';
 
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
-    header("Location: ../index.php");
-    exit();
-}
+$start_date = $_GET['start_date'] ?? date('Y-m-01');
+$end_date = $_GET['end_date'] ?? date('Y-m-t');
 
-$transactions = $conn->query("SELECT * FROM transaksi ORDER BY tanggal DESC");
+$sql = "SELECT t.*, 
+        (SELECT GROUP_CONCAT(CONCAT(m.nama_menu, ' (', d.jumlah, 'x)') SEPARATOR ', ') 
+         FROM detail_transaksi d JOIN menu m ON d.id_menu = m.id_menu WHERE d.id_transaksi = t.id_transaksi) as items
+        FROM transaksi t WHERE DATE(t.tanggal) BETWEEN ? AND ? ORDER BY t.tanggal DESC";
+
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("ss", $start_date, $end_date);
+$stmt->execute();
+$result = $stmt->get_result();
+
+$summary_sql = "SELECT COUNT(*) as total_transaksi, SUM(total) as total_pendapatan, AVG(total) as rata_rata FROM transaksi WHERE DATE(tanggal) BETWEEN ? AND ?";
+$stmt_summary = $conn->prepare($summary_sql);
+$stmt_summary->bind_param("ss", $start_date, $end_date);
+$stmt_summary->execute();
+$summary = $stmt_summary->get_result()->fetch_assoc();
+
+$admin_id = $_SESSION['id_user'];
+$admin = $conn->query("SELECT * FROM users WHERE id_user = $admin_id")->fetch_assoc();
+$foto_profil = !empty($admin['profile_picture']) ? '../' . $admin['profile_picture'] : 'https://ui-avatars.com/api/?name=' . urlencode($admin['nama'] ?? 'Admin');
 ?>
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -17,165 +32,60 @@ $transactions = $conn->query("SELECT * FROM transaksi ORDER BY tanggal DESC");
     <title>Manajemen Transaksi - EasyResto Admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        'antique-white': '#F7EBDF',
-                        'pale-taupe': '#B7A087',
-                        'primary': '#B7A087',
-                        'secondary': '#F7EBDF'
-                    }
-                }
-            }
-        }
-        function toggleDetail(id) {
-            const row = document.getElementById('detail-' + id);
-            if (row.classList.contains('hidden')) {
-                row.classList.remove('hidden');
-            } else {
-                row.classList.add('hidden');
-            }
-        }
-    </script>
-    <style>
-        .glass-effect {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-        }
-        .sidebar-gradient {
-            background: #B7A087; /* Solid color instead of gradient */
-        }
-    </style>
+    <script>tailwind.config={theme:{extend:{colors:{'antique-white':'#F7EBDF','pale-taupe':'#B7A087','primary':'#B7A087','secondary':'#F7EBDF'}}}}</script>
+    <style>body{background-color:#F7EBDF}.sidebar{background:linear-gradient(to bottom,#B7A087,#8B7355)}.btn-primary{background-color:#B7A087;color:white}.btn-primary:hover{background-color:#8B7355}</style>
 </head>
-<body class="bg-gray-50 flex h-screen overflow-hidden font-sans">
-    <!-- Sidebar -->
-    <div class="w-64 sidebar-gradient text-white flex flex-col shadow-2xl transition-all duration-300">
-        <div class="h-20 flex items-center justify-center font-bold text-2xl border-b border-white/10 tracking-wide">
-            <i class="fas fa-utensils mr-3 opacity-80"></i> EasyResto
+<body class="bg-antique-white">
+    <div class="fixed inset-y-0 left-0 w-64 sidebar shadow-xl flex flex-col justify-between">
+        <div>
+            <div class="flex items-center justify-center h-16 bg-pale-taupe"><div class="text-white text-center"><h1 class="text-xl font-bold">EasyResto</h1><p class="text-xs opacity-90">Admin Panel</p></div></div>
+            <nav class="mt-8">
+                <a href="dashboard.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30"><i class="fas fa-chart-line w-6"></i><span class="mx-3">Dashboard</span></a>
+                <a href="manajemen_pengguna.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30"><i class="fas fa-users w-6"></i><span class="mx-3">Manajemen Pengguna</span></a>
+                <a href="manajemen_menu.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30"><i class="fas fa-utensils w-6"></i><span class="mx-3">Manajemen Menu</span></a>
+                <a href="manajemen_transaksi.php" class="flex items-center px-6 py-3 text-white bg-pale-taupe bg-opacity-40 border-l-4 border-white"><i class="fas fa-cash-register w-6"></i><span class="mx-3">Manajemen Transaksi</span></a>
+                <a href="laporan_penjualan.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30"><i class="fas fa-file-invoice-dollar w-6"></i><span class="mx-3">Laporan Penjualan</span></a>
+                <a href="profil.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30"><i class="fas fa-user-cog w-6"></i><span class="mx-3">Profil</span></a>
+            </nav>
         </div>
-        <nav class="flex-1 overflow-y-auto py-6 space-y-1">
-            <a href="dashboard.php" class="flex items-center px-6 py-4 hover:bg-white/10 hover:translate-x-1 transition-all duration-200 text-white/90">
-                <i class="fas fa-chart-pie w-6 text-lg"></i>
-                <span class="mx-3 font-medium">Dashboard</span>
-            </a>
-            <a href="manajemen_pengguna.php" class="flex items-center px-6 py-4 hover:bg-white/10 hover:translate-x-1 transition-all duration-200 text-white/90">
-                <i class="fas fa-users w-6 text-lg"></i>
-                <span class="mx-3 font-medium">Kelola Pengguna</span>
-            </a>
-            <a href="manajemen_menu.php" class="flex items-center px-6 py-4 hover:bg-white/10 hover:translate-x-1 transition-all duration-200 text-white/90">
-                <i class="fas fa-book-open w-6 text-lg"></i>
-                <span class="mx-3 font-medium">Kelola Menu</span>
-            </a>
-            <a href="manajemen_transaksi.php" class="flex items-center px-6 py-4 bg-white/20 border-l-4 border-white transition-all duration-200">
-                <i class="fas fa-receipt w-6 text-lg"></i>
-                <span class="mx-3 font-medium">Transaksi</span>
-            </a>
-            <a href="laporan_penjualan.php" class="flex items-center px-6 py-4 hover:bg-white/10 hover:translate-x-1 transition-all duration-200 text-white/90">
-                <i class="fas fa-file-invoice-dollar w-6 text-lg"></i>
-                <span class="mx-3 font-medium">Laporan</span>
-            </a>
-
-        </nav>
-        <div class="p-6 border-t border-white/10">
-            <a href="../logout.php" class="flex items-center justify-center px-4 py-3 bg-red-500/80 hover:bg-red-600 rounded-xl shadow-lg transition-all duration-200 transform hover:scale-105 backdrop-blur-sm">
-                <i class="fas fa-sign-out-alt mr-2"></i> Logout
-            </a>
-        </div>
+        <div class="p-4 bg-pale-taupe bg-opacity-80"><div class="flex items-center gap-3"><img src="<?=$foto_profil?>" class="w-10 h-10 rounded-full border-2 border-white object-cover"><div class="text-white"><p class="font-bold text-sm truncate"><?=htmlspecialchars($_SESSION['nama'])?></p><p class="text-xs opacity-90">Role: Admin</p><a href="../logout.php" class="text-xs text-red-200 hover:text-white"><i class="fas fa-sign-out-alt"></i> Logout</a></div></div></div>
     </div>
 
-    <!-- Main Content -->
-    <div class="flex-1 flex flex-col overflow-hidden bg-gray-50/50">
-        <header class="bg-white shadow-sm z-10 px-8 py-5 flex justify-between items-center glass-effect sticky top-0">
-            <div>
-                <h2 class="text-2xl font-bold text-gray-800">Manajemen Transaksi</h2>
-                <p class="text-sm text-gray-500">Pantau dan kelola transaksi harian</p>
+    <div class="ml-64">
+        <header class="bg-white shadow-sm border-b border-pale-taupe"><div class="flex items-center justify-between px-8 py-4"><div><h1 class="text-2xl font-bold text-gray-800">Manajemen Transaksi</h1><p class="text-gray-600">Pantau dan kelola semua transaksi</p></div></div></header>
+        <main class="p-8">
+            <div class="bg-white rounded-xl shadow-sm border p-6 mb-8">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Filter Transaksi</h3>
+                <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div><label class="block text-sm font-medium text-gray-700 mb-2">Tanggal Mulai</label><input type="date" name="start_date" value="<?=$start_date?>" class="w-full px-3 py-2 border rounded-lg"></div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-2">Tanggal Akhir</label><input type="date" name="end_date" value="<?=$end_date?>" class="w-full px-3 py-2 border rounded-lg"></div>
+                    <div class="flex items-end"><button type="submit" class="w-full btn-primary px-4 py-2 rounded-lg"><i class="fas fa-filter mr-2"></i>Filter</button></div>
+                    <div class="flex items-end"><a href="manajemen_transaksi.php" class="w-full px-4 py-2 text-center bg-gray-100 rounded-lg hover:bg-gray-200"><i class="fas fa-refresh mr-2"></i>Reset</a></div>
+                </form>
             </div>
-            <a href="edit_profil.php" class="flex items-center space-x-4 hover:bg-gray-50 p-2 rounded-lg transition-colors cursor-pointer group">
-                <div class="flex flex-col text-right mr-2">
-                    <span class="text-sm font-semibold text-gray-700 group-hover:text-amber-800 transition-colors"><?php echo $_SESSION['nama']; ?></span>
-                    <span class="text-xs text-pale-taupe font-medium uppercase tracking-wider">Administrator</span>
-                </div>
-                <div class="w-12 h-12 rounded-full bg-pale-taupe flex items-center justify-center text-white font-bold text-lg shadow-md ring-2 ring-offset-2 ring-pale-taupe overflow-hidden">
-                    <?php if (!empty($_SESSION['profile_picture']) && file_exists('../' . $_SESSION['profile_picture'])): ?>
-                        <img src="../<?php echo $_SESSION['profile_picture']; ?>" alt="Profile" class="w-full h-full object-cover">
-                    <?php else: ?>
-                        <?php echo substr($_SESSION['nama'], 0, 1); ?>
-                    <?php endif; ?>
-                </div>
-            </a>
-        </header>
-
-        <main class="flex-1 overflow-x-hidden overflow-y-auto p-8 scroll-smooth">
-            <div class="bg-white rounded-xl shadow p-6">
-                <div class="mb-6">
-                    <h3 class="text-lg font-semibold text-gray-800">Riwayat Transaksi</h3>
-                </div>
-
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-gradient-to-r from-pale-taupe to-amber-800 rounded-xl shadow-lg p-6 text-white"><div class="flex items-center justify-between"><div><p class="text-sm">Total Transaksi</p><p class="text-2xl font-bold"><?=number_format($summary['total_transaksi']??0,0)?></p></div><i class="fas fa-shopping-cart text-2xl opacity-80"></i></div></div>
+                <div class="bg-gradient-to-r from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white"><div class="flex items-center justify-between"><div><p class="text-sm">Total Pendapatan</p><p class="text-2xl font-bold">Rp <?=number_format($summary['total_pendapatan']??0,0,',','.')?></p></div><i class="fas fa-money-bill-wave text-2xl opacity-80"></i></div></div>
+                <div class="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white"><div class="flex items-center justify-between"><div><p class="text-sm">Rata-rata/Transaksi</p><p class="text-2xl font-bold">Rp <?=number_format($summary['rata_rata']??0,0,',','.')?></p></div><i class="fas fa-chart-bar text-2xl opacity-80"></i></div></div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+                <div class="px-6 py-4 border-b bg-gray-50"><h3 class="text-lg font-semibold text-gray-800">Riwayat Transaksi</h3><p class="text-sm text-gray-600">Periode: <?=date('d M Y',strtotime($start_date))?> - <?=date('d M Y',strtotime($end_date))?></p></div>
                 <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr>
-                                <th class="py-3 border-b text-gray-600">ID</th>
-                                <th class="py-3 border-b text-gray-600">Pelanggan</th>
-                                <th class="py-3 border-b text-gray-600">Tanggal</th>
-                                <th class="py-3 border-b text-gray-600">Total</th>
-                                <th class="py-3 border-b text-gray-600">Detail</th>
+                    <table class="w-full">
+                        <thead class="bg-gray-50"><tr><th class="px-4 py-3 text-left text-xs font-semibold text-gray-600">ID</th><th class="px-4 py-3 text-left text-xs font-semibold text-gray-600">Pelanggan</th><th class="px-4 py-3 text-left text-xs font-semibold text-gray-600">Tanggal</th><th class="px-4 py-3 text-left text-xs font-semibold text-gray-600">Items</th><th class="px-4 py-3 text-left text-xs font-semibold text-gray-600">Total</th><th class="px-4 py-3 text-left text-xs font-semibold text-gray-600">Status</th></tr></thead>
+                        <tbody class="divide-y">
+                            <?php if($result->num_rows>0):while($row=$result->fetch_assoc()):?>
+                            <tr class="hover:bg-pale-taupe hover:bg-opacity-10">
+                                <td class="px-4 py-3"><span class="bg-pale-taupe bg-opacity-20 px-2 py-1 rounded text-sm">#<?=$row['id_transaksi']?></span></td>
+                                <td class="px-4 py-3 text-sm"><?=htmlspecialchars($row['nama_pelanggan'])?></td>
+                                <td class="px-4 py-3 text-sm"><?=date('d/m/Y H:i',strtotime($row['tanggal']))?></td>
+                                <td class="px-4 py-3 text-sm max-w-xs truncate"><?=htmlspecialchars($row['items']?:'-')?></td>
+                                <td class="px-4 py-3 text-sm font-semibold text-green-600">Rp <?=number_format($row['total'],0,',','.')?></td>
+                                <td class="px-4 py-3"><span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800"><i class="fas fa-check mr-1"></i>Selesai</span></td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            <?php while($trans = $transactions->fetch_assoc()): ?>
-                            <tr class="hover:bg-gray-50 border-b">
-                                <td class="py-3">#<?php echo $trans['id_transaksi']; ?></td>
-                                <td class="py-3"><?php echo htmlspecialchars($trans['nama_pelanggan']); ?></td>
-                                <td class="py-3"><?php echo date('d/m/Y H:i', strtotime($trans['tanggal'])); ?></td>
-                                <td class="py-3 font-semibold">Rp <?php echo number_format($trans['total'], 0, ',', '.'); ?></td>
-                                <td class="py-3">
-                                    <button onclick="toggleDetail(<?php echo $trans['id_transaksi']; ?>)" class="text-blue-500 hover:text-blue-700">
-                                        <i class="fas fa-eye"></i> Lihat
-                                    </button>
-                                </td>
-                            </tr>
-                            <tr id="detail-<?php echo $trans['id_transaksi']; ?>" class="hidden bg-gray-50">
-                                <td colspan="5" class="p-4">
-                                    <div class="pl-4 border-l-2 border-pale-taupe">
-                                        <h4 class="font-semibold text-sm text-gray-700 mb-2">Detail Pesanan:</h4>
-                                        <table class="w-full text-sm">
-                                            <thead>
-                                                <tr>
-                                                    <th class="text-left pb-2">Menu</th>
-                                                    <th class="text-left pb-2">Jumlah</th>
-                                                    <th class="text-left pb-2">Subtotal</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <?php
-                                                $details = $conn->query("
-                                                    SELECT d.*, m.nama_menu 
-                                                    FROM detail_transaksi d 
-                                                    JOIN menu m ON d.id_menu = m.id_menu 
-                                                    WHERE d.id_transaksi = " . $trans['id_transaksi']
-                                                );
-                                                while($det = $details->fetch_assoc()):
-                                                ?>
-                                                <tr>
-                                                    <td class="py-1 text-gray-600"><?php echo htmlspecialchars($det['nama_menu']); ?></td>
-                                                    <td class="py-1 text-gray-600"><?php echo $det['jumlah']; ?>x</td>
-                                                    <td class="py-1 text-gray-600">Rp <?php echo number_format($det['subtotal'], 0, ',', '.'); ?></td>
-                                                </tr>
-                                                <?php endwhile; ?>
-                                            </tbody>
-                                        </table>
-                                        <div class="mt-2 text-sm text-gray-600">
-                                            <p>Subtotal: Rp <?php echo number_format($trans['subtotal'], 0, ',', '.'); ?></p>
-                                            <p>PPN (10%): Rp <?php echo number_format($trans['ppn'], 0, ',', '.'); ?></p>
-                                            <p>Service: Rp <?php echo number_format($trans['service'], 0, ',', '.'); ?></p>
-                                        </div>
-                                    </div>
-                                </td>
-                            </tr>
-                            <?php endwhile; ?>
+                            <?php endwhile;else:?>
+                            <tr><td colspan="6" class="px-6 py-12 text-center text-gray-500"><i class="fas fa-inbox text-4xl mb-4"></i><p>Tidak ada transaksi</p></td></tr>
+                            <?php endif;?>
                         </tbody>
                     </table>
                 </div>

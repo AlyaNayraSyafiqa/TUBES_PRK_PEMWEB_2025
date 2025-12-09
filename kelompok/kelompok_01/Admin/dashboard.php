@@ -1,50 +1,34 @@
 <?php
-include '../config.php';
-
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
-    header("Location: ../index.php");
-    exit();
-}
+include 'config.php';
 
 $total_penjualan = $conn->query("SELECT SUM(total) as total FROM transaksi")->fetch_assoc()['total'] ?? 0;
 $total_transaksi = $conn->query("SELECT COUNT(*) as total FROM transaksi")->fetch_assoc()['total'] ?? 0;
-$total_menu = $conn->query("SELECT COUNT(*) as total FROM menu")->fetch_assoc()['total'] ?? 0;
-$total_users = $conn->query("SELECT COUNT(*) as total FROM users")->fetch_assoc()['total'] ?? 0;
+$menu_terpopuler = $conn->query("
+    SELECT m.nama_menu, SUM(d.jumlah) as total_terjual 
+    FROM detail_transaksi d 
+    JOIN menu m ON d.id_menu = m.id_menu 
+    GROUP BY m.id_menu 
+    ORDER BY total_terjual DESC 
+    LIMIT 1
+")->fetch_assoc();
 
-$recent_transactions = $conn->query("SELECT * FROM transaksi ORDER BY tanggal DESC LIMIT 5");
-
-$cat_sales_query = $conn->query("
+$kategori_penjualan = $conn->query("
     SELECT k.nama_kategori, SUM(d.subtotal) as total
     FROM detail_transaksi d
     JOIN menu m ON d.id_menu = m.id_menu
     JOIN kategori_menu k ON m.id_kategori = k.id_kategori
     GROUP BY k.id_kategori
 ");
-$cat_labels = [];
-$cat_data = [];
-while ($row = $cat_sales_query->fetch_assoc()) {
-    $cat_labels[] = $row['nama_kategori'];
-    $cat_data[] = $row['total'];
-}
 
-$daily_sales_query = $conn->query("
-    SELECT DATE(tanggal) as tgl, SUM(total) as total 
-    FROM transaksi 
-    GROUP BY DATE(tanggal) 
-    ORDER BY tanggal DESC 
-    LIMIT 7
-");
-$daily_labels = [];
-$daily_data = [];
-$temp_daily = [];
-while ($row = $daily_sales_query->fetch_assoc()) {
-    $temp_daily[] = $row;
-}
-$temp_daily = array_reverse($temp_daily);
-foreach ($temp_daily as $row) {
-    $daily_labels[] = date('d M', strtotime($row['tgl']));
-    $daily_data[] = $row['total'];
-}
+$recent_transactions = $conn->query("SELECT * FROM transaksi ORDER BY tanggal DESC LIMIT 5");
+
+$admin_id = $_SESSION['id_user'];
+$admin_result = $conn->query("SELECT * FROM users WHERE id_user = $admin_id");
+$admin = $admin_result->fetch_assoc();
+
+
+$default_avatar = 'https://ui-avatars.com/api/?name=' . urlencode($admin['nama'] ?? 'Admin');
+$foto_profil = !empty($admin['profile_picture']) ? '../' . $admin['profile_picture'] : $default_avatar;
 ?>
 
 <!DOCTYPE html>
@@ -52,7 +36,7 @@ foreach ($temp_daily as $row) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Admin - EasyResto</title>
+    <title>Dashboard - EasyResto Admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -64,289 +48,393 @@ foreach ($temp_daily as $row) {
                         'antique-white': '#F7EBDF',
                         'pale-taupe': '#B7A087',
                         'primary': '#B7A087',
-                        'secondary': '#F7EBDF',
-                        'dark-brown': '#5D4037'
+                        'secondary': '#F7EBDF'
                     }
                 }
             }
         }
     </script>
     <style>
-        .glass-effect {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
+        body {
+            background-color: #F7EBDF;
         }
-        .sidebar-gradient {
-            background: #B7A087; /* Solid color instead of gradient */
+        .sidebar {
+            background: linear-gradient(to bottom, #B7A087, #8B7355);
+        }
+        .card {
+            background: white;
+            border: 1px solid #E5D9C8;
+        }
+        .btn-primary {
+            background-color: #B7A087;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #8B7355;
         }
     </style>
 </head>
-<body class="bg-gray-50 flex h-screen overflow-hidden font-sans">
-    <div class="w-64 sidebar-gradient text-white flex flex-col shadow-2xl transition-all duration-300">
-        <div class="h-20 flex items-center justify-center font-bold text-2xl border-b border-white/10 tracking-wide">
-            <i class="fas fa-utensils mr-3 opacity-80"></i> EasyResto
+<body class="bg-antique-white">
+   
+    <div class="fixed inset-y-0 left-0 w-64 sidebar shadow-xl flex flex-col justify-between">
+        <div>
+            <div class="flex items-center justify-center h-16 bg-pale-taupe">
+                <div class="text-white text-center">
+                    <h1 class="text-xl font-bold">EasyResto</h1>
+                    <p class="text-xs text-white opacity-90">Admin Panel</p>
+                </div>
+            </div>
+            
+            <nav class="mt-8">
+                <a href="dashboard.php" class="flex items-center px-6 py-3 text-white bg-pale-taupe bg-opacity-40 border-l-4 border-white">
+                    <i class="fas fa-chart-line w-6"></i>
+                    <span class="mx-3 font-medium">Dashboard</span>
+                </a>
+                <a href="manajemen_pengguna.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-users w-6"></i>
+                    <span class="mx-3 font-medium">Manajemen Pengguna</span>
+                </a>
+                <a href="manajemen_menu.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-utensils w-6"></i>
+                    <span class="mx-3 font-medium">Manajemen Menu</span>
+                </a>
+                <a href="manajemen_transaksi.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-cash-register w-6"></i>
+                    <span class="mx-3 font-medium">Manajemen Transaksi</span>
+                </a>
+                <a href="laporan_penjualan.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-file-invoice-dollar w-6"></i>
+                    <span class="mx-3 font-medium">Laporan Penjualan</span>
+                </a>
+                <a href="profil.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-user-cog w-6"></i>
+                    <span class="mx-3 font-medium">Profil</span>
+                </a>
+            </nav>
         </div>
-        <nav class="flex-1 overflow-y-auto py-6 space-y-1">
-            <a href="dashboard.php" class="flex items-center px-6 py-4 bg-white/20 border-l-4 border-white transition-all duration-200">
-                <i class="fas fa-chart-pie w-6 text-lg"></i>
-                <span class="mx-3 font-medium">Dashboard</span>
-            </a>
-            <a href="manajemen_pengguna.php" class="flex items-center px-6 py-4 hover:bg-white/10 hover:translate-x-1 transition-all duration-200 text-white/90">
-                <i class="fas fa-users w-6 text-lg"></i>
-                <span class="mx-3 font-medium">Kelola Pengguna</span>
-            </a>
-            <a href="manajemen_menu.php" class="flex items-center px-6 py-4 hover:bg-white/10 hover:translate-x-1 transition-all duration-200 text-white/90">
-                <i class="fas fa-book-open w-6 text-lg"></i>
-                <span class="mx-3 font-medium">Kelola Menu</span>
-            </a>
-            <a href="manajemen_transaksi.php" class="flex items-center px-6 py-4 hover:bg-white/10 hover:translate-x-1 transition-all duration-200 text-white/90">
-                <i class="fas fa-receipt w-6 text-lg"></i>
-                <span class="mx-3 font-medium">Transaksi</span>
-            </a>
-            <a href="laporan_penjualan.php" class="flex items-center px-6 py-4 hover:bg-white/10 hover:translate-x-1 transition-all duration-200 text-white/90">
-                <i class="fas fa-file-invoice-dollar w-6 text-lg"></i>
-                <span class="mx-3 font-medium">Laporan</span>
-            </a>
-        </nav>
-        <div class="p-6 border-t border-white/10">
-            <a href="../logout.php" class="flex items-center justify-center px-4 py-3 bg-red-500/80 hover:bg-red-600 rounded-xl shadow-lg transition-all duration-200 transform hover:scale-105 backdrop-blur-sm">
-                <i class="fas fa-sign-out-alt mr-2"></i> Logout
-            </a>
+        
+        <div class="p-4 bg-pale-taupe bg-opacity-80">
+            <div class="flex items-center gap-3">
+                <img src="<?= $foto_profil ?>" class="w-10 h-10 rounded-full border-2 border-white object-cover">
+                <div class="overflow-hidden text-white">
+                    <p class="font-bold text-sm truncate leading-tight"><?= htmlspecialchars($_SESSION['nama']) ?></p>
+                    <p class="text-xs opacity-90">Role: Admin</p>
+                    <a href="../logout.php" class="text-xs text-red-200 hover:text-white flex items-center gap-1 mt-1 transition-colors">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </a>
+                </div>
+            </div>
         </div>
     </div>
 
-    <div class="flex-1 flex flex-col overflow-hidden bg-gray-50/50">
-        <header class="bg-white shadow-sm z-10 px-8 py-5 flex justify-between items-center glass-effect sticky top-0">
-            <div>
-                <h2 class="text-2xl font-bold text-gray-800">Dashboard Overview</h2>
-                <p class="text-sm text-gray-500">Selamat datang kembali, Admin</p>
+    
+    <div class="ml-64">
+       
+        <header class="bg-white shadow-sm border-b border-pale-taupe">
+            <div class="flex items-center justify-between px-8 py-4">
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-800">Dashboard</h1>
+                    <p class="text-gray-600">Ringkasan kinerja restoran</p>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="text-right">
+                        <p class="text-sm text-gray-600">Selamat datang</p>
+                        <p class="font-semibold text-gray-800"><?php echo htmlspecialchars($_SESSION['nama']); ?></p>
+                    </div>
+                    <a href="profil.php" class="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden border-2 border-pale-taupe">
+                        <img src="<?= $foto_profil ?>" alt="Profil" class="w-full h-full object-cover">
+                    </a>
+                </div>
             </div>
-            <a href="edit_profil.php" class="flex items-center space-x-4 hover:bg-gray-50 p-2 rounded-lg transition-colors cursor-pointer group">
-                <div class="flex flex-col text-right mr-2">
-                    <span class="text-sm font-semibold text-gray-700 group-hover:text-amber-800 transition-colors"><?php echo $_SESSION['nama']; ?></span>
-                    <span class="text-xs text-pale-taupe font-medium uppercase tracking-wider">Administrator</span>
-                </div>
-                <!-- Profile Picture with fallback -->
-                <div class="w-12 h-12 rounded-full bg-pale-taupe flex items-center justify-center text-white font-bold text-lg shadow-md ring-2 ring-offset-2 ring-pale-taupe overflow-hidden">
-                    <?php if (!empty($_SESSION['profile_picture']) && file_exists('../' . $_SESSION['profile_picture'])): ?>
-                        <img src="../<?php echo $_SESSION['profile_picture']; ?>" alt="Profile" class="w-full h-full object-cover">
-                    <?php else: ?>
-                        <?php echo substr($_SESSION['nama'], 0, 1); ?>
-                    <?php endif; ?>
-                </div>
-            </a>
         </header>
 
-        <main class="flex-1 overflow-x-hidden overflow-y-auto p-8 scroll-smooth">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
-                <div class="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                    <div class="flex justify-between items-start">
-                        <div>
-                            <p class="text-xs font-bold text-green-500 uppercase tracking-wider mb-1">Total Pendapatan</p>
-                            <h3 class="text-2xl font-extrabold text-gray-800">Rp <?php echo number_format($total_penjualan, 0, ',', '.'); ?></h3>
+       
+        <main class="p-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+               
+                <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-wallet text-2xl text-green-500"></i>
+                            </div>
+                            <div class="ml-4">
+                                <h3 class="text-sm font-medium text-gray-600">Total Penjualan</h3>
+                                <p class="text-2xl font-bold text-gray-900">Rp <?php echo number_format($total_penjualan, 0, ',', '.'); ?></p>
+                            </div>
                         </div>
-                        <div class="p-3 rounded-xl bg-green-50 text-green-500 shadow-sm">
-                            <i class="fas fa-wallet text-xl"></i>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                    <div class="flex justify-between items-start">
-                        <div>
-                            <p class="text-xs font-bold text-blue-500 uppercase tracking-wider mb-1">Total Transaksi</p>
-                            <h3 class="text-2xl font-extrabold text-gray-800"><?php echo number_format($total_transaksi, 0, ',', '.'); ?></h3>
-                        </div>
-                        <div class="p-3 rounded-xl bg-blue-50 text-blue-500 shadow-sm">
-                            <i class="fas fa-shopping-bag text-xl"></i>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                    <div class="flex justify-between items-start">
-                        <div>
-                            <p class="text-xs font-bold text-orange-500 uppercase tracking-wider mb-1">Total Menu</p>
-                            <h3 class="text-2xl font-extrabold text-gray-800"><?php echo $total_menu; ?></h3>
-                        </div>
-                        <div class="p-3 rounded-xl bg-orange-50 text-orange-500 shadow-sm">
-                            <i class="fas fa-utensils text-xl"></i>
+                        <div class="text-right">
+                            <div class="flex items-center text-sm text-green-600">
+                                <i class="fas fa-arrow-up mr-1"></i>
+                                <span>12%</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">vs bulan lalu</p>
                         </div>
                     </div>
                 </div>
-                <div class="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                    <div class="flex justify-between items-start">
-                        <div>
-                            <p class="text-xs font-bold text-purple-500 uppercase tracking-wider mb-1">Total Pengguna</p>
-                            <h3 class="text-2xl font-extrabold text-gray-800"><?php echo $total_users; ?></h3>
+
+            
+                <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-shopping-cart text-2xl text-blue-500"></i>
+                            </div>
+                            <div class="ml-4">
+                                <h3 class="text-sm font-medium text-gray-600">Total Transaksi</h3>
+                                <p class="text-2xl font-bold text-gray-900"><?php echo number_format($total_transaksi, 0, ',', '.'); ?></p>
+                            </div>
                         </div>
-                        <div class="p-3 rounded-xl bg-purple-50 text-purple-500 shadow-sm">
-                            <i class="fas fa-users text-xl"></i>
+                        <div class="text-right">
+                            <div class="flex items-center text-sm text-blue-600">
+                                <i class="fas fa-chart-line mr-1"></i>
+                                <span>8%</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">peningkatan</p>
+                        </div>
+                    </div>
+                </div>
+
+           
+                <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-purple-500 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-star text-2xl text-purple-500"></i>
+                            </div>
+                            <div class="ml-4">
+                                <h3 class="text-sm font-medium text-gray-600">Menu Terpopuler</h3>
+                                <p class="text-lg font-bold text-gray-900 truncate max-w-[150px]"><?php echo htmlspecialchars($menu_terpopuler['nama_menu'] ?? 'Belum ada data'); ?></p>
+                                <p class="text-sm text-gray-500">Terjual: <?php echo $menu_terpopuler['total_terjual'] ?? '0'; ?> pcs</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                <i class="fas fa-fire mr-1"></i>
+                                Hot
+                            </span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
-                <div class="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
-                    <h3 class="text-lg font-bold text-gray-800 mb-6 flex items-center">
-                        <i class="fas fa-chart-pie mr-2 text-pale-taupe"></i> Penjualan per Kategori
-                    </h3>
-                    <div class="relative h-64">
+           
+            <div class="mb-8">
+                <div class="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-300">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-lg font-semibold text-gray-800">Penjualan per Kategori</h3>
+                    </div>
+                    <div class="h-80">
                         <canvas id="categoryChart"></canvas>
                     </div>
                 </div>
-                <div class="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
-                    <h3 class="text-lg font-bold text-gray-800 mb-6 flex items-center">
-                        <i class="fas fa-chart-line mr-2 text-pale-taupe"></i> Tren Penjualan (7 Hari Terakhir)
-                    </h3>
-                    <div class="relative h-64">
-                        <canvas id="salesChart"></canvas>
-                    </div>
-                </div>
             </div>
 
-            <div class="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-                <div class="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                    <h3 class="text-lg font-bold text-gray-800">Transaksi Terbaru</h3>
-                    <a href="manajemen_transaksi.php" class="text-sm font-semibold text-pale-taupe hover:text-amber-800 flex items-center transition-colors">
-                        Lihat Semua <i class="fas fa-arrow-right ml-2 text-xs"></i>
-                    </a>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left">
-                        <thead>
-                            <tr class="bg-gray-50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500 font-semibold">
-                                <th class="py-4 px-6 md:w-16">ID</th>
-                                <th class="py-4 px-6">Pelanggan</th>
-                                <th class="py-4 px-6">Tanggal</th>
-                                <th class="py-4 px-6 text-right">Total</th>
-                                <th class="py-4 px-6 text-center">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100">
-                            <?php if ($recent_transactions->num_rows > 0): ?>
-                                <?php while($row = $recent_transactions->fetch_assoc()): ?>
-                                    <tr class="hover:bg-gray-50/80 transition-colors duration-150">
-                                        <td class="py-4 px-6 text-sm font-medium text-gray-900">#<?php echo $row['id_transaksi']; ?></td>
-                                        <td class="py-4 px-6 text-sm text-gray-600 font-medium"><?php echo htmlspecialchars($row['nama_pelanggan']); ?></td>
-                                        <td class="py-4 px-6 text-sm text-gray-500">
-                                            <div class="flex flex-col">
-                                                <span><?php echo date('d M Y', strtotime($row['tanggal'])); ?></span>
-                                                <span class="text-xs text-gray-400"><?php echo date('H:i', strtotime($row['tanggal'])); ?></span>
-                                            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+                <div class="lg:col-span-2 bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-300">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-lg font-semibold text-gray-800">Transaksi Terbaru</h3>
+                        <a href="manajemen_transaksi.php" class="text-sm text-pale-taupe hover:text-amber-800 font-medium flex items-center">
+                            Lihat Semua
+                            <i class="fas fa-chevron-right ml-1 text-xs"></i>
+                        </a>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="text-left border-b-2 border-gray-200">
+                                    <th class="pb-4 font-semibold text-gray-600 text-sm">ID Transaksi</th>
+                                    <th class="pb-4 font-semibold text-gray-600 text-sm">Pelanggan</th>
+                                    <th class="pb-4 font-semibold text-gray-600 text-sm">Tanggal</th>
+                                    <th class="pb-4 font-semibold text-gray-600 text-sm">Total</th>
+                                    <th class="pb-4 font-semibold text-gray-600 text-sm">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if ($recent_transactions->num_rows > 0): ?>
+                                    <?php while($transaction = $recent_transactions->fetch_assoc()): ?>
+                                    <tr class="border-b border-gray-100 hover:bg-pale-taupe hover:bg-opacity-10 transition-colors group">
+                                        <td class="py-4 text-sm font-medium text-gray-900">
+                                            <span class="bg-pale-taupe bg-opacity-20 px-2 py-1 rounded text-gray-700">#<?php echo $transaction['id_transaksi']; ?></span>
                                         </td>
-                                        <td class="py-4 px-6 text-sm font-bold text-gray-800 text-right">Rp <?php echo number_format($row['total'], 0, ',', '.'); ?></td>
-                                        <td class="py-4 px-6 text-center">
-                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        <td class="py-4 text-sm text-gray-600"><?php echo htmlspecialchars($transaction['nama_pelanggan']); ?></td>
+                                        <td class="py-4 text-sm text-gray-600">
+                                            <div><?php echo date('d M Y', strtotime($transaction['tanggal'])); ?></div>
+                                            <div class="text-xs text-gray-500"><?php echo date('H:i', strtotime($transaction['tanggal'])); ?></div>
+                                        </td>
+                                        <td class="py-4 text-sm font-semibold text-gray-900">Rp <?php echo number_format($transaction['total'], 0, ',', '.'); ?></td>
+                                        <td class="py-4">
+                                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 flex items-center w-fit">
+                                                <i class="fas fa-check mr-1 text-xs"></i>
                                                 Selesai
                                             </span>
                                         </td>
                                     </tr>
-                                <?php endwhile; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="5" class="py-8 text-center text-gray-500 italic">Belum ada transaksi</td>
-                                </tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
+                                    <?php endwhile; ?>
+                                <?php else: ?>
+                                    <tr>
+                                        <td colspan="5" class="py-8 text-center">
+                                            <div class="flex flex-col items-center justify-center text-gray-500">
+                                                <i class="fas fa-receipt text-3xl mb-3 opacity-50"></i>
+                                                <p class="text-sm">Belum ada transaksi</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+             
+                <div class="space-y-6">
+               
+                    <div class="bg-gradient-to-r from-pale-taupe to-amber-800 rounded-xl shadow-lg p-6 text-white">
+                        <h3 class="text-lg font-semibold mb-4">Quick Actions</h3>
+                        <div class="space-y-3">
+                            <a href="laporan_penjualan.php" class="flex items-center p-3 bg-white bg-opacity-10 rounded-lg hover:bg-opacity-20 transition-all group">
+                                <i class="fas fa-chart-bar mr-3 group-hover:scale-110 transition-transform"></i>
+                                <span>Lihat Laporan</span>
+                                <i class="fas fa-chevron-right ml-auto text-sm opacity-70"></i>
+                            </a>
+                            <a href="manajemen_menu.php" class="flex items-center p-3 bg-white bg-opacity-10 rounded-lg hover:bg-opacity-20 transition-all group">
+                                <i class="fas fa-utensils mr-3 group-hover:scale-110 transition-transform"></i>
+                                <span>Kelola Menu</span>
+                                <i class="fas fa-chevron-right ml-auto text-sm opacity-70"></i>
+                            </a>
+                            <a href="manajemen_pengguna.php" class="flex items-center p-3 bg-white bg-opacity-10 rounded-lg hover:bg-opacity-20 transition-all group">
+                                <i class="fas fa-users mr-3 group-hover:scale-110 transition-transform"></i>
+                                <span>Kelola Pengguna</span>
+                                <i class="fas fa-chevron-right ml-auto text-sm opacity-70"></i>
+                            </a>
+                        </div>
+                    </div>
+
+                  
+                    <div class="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-300">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">Statistik Tambahan</h3>
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between p-3 bg-pale-taupe bg-opacity-10 rounded-lg">
+                                <div class="flex items-center">
+                                    <i class="fas fa-utensils text-pale-taupe mr-3"></i>
+                                    <span class="text-sm font-medium text-gray-700">Total Menu</span>
+                                </div>
+                                <span class="text-lg font-bold text-pale-taupe">
+                                    <?php echo $conn->query("SELECT COUNT(*) as total FROM menu")->fetch_assoc()['total']; ?>
+                                </span>
+                            </div>
+                            <div class="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                                <div class="flex items-center">
+                                    <i class="fas fa-users text-green-500 mr-3"></i>
+                                    <span class="text-sm font-medium text-gray-700">Total Pengguna</span>
+                                </div>
+                                <span class="text-lg font-bold text-green-600">
+                                    <?php echo $conn->query("SELECT COUNT(*) as total FROM users")->fetch_assoc()['total']; ?>
+                                </span>
+                            </div>
+                            <div class="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+                                <div class="flex items-center">
+                                    <i class="fas fa-tags text-purple-500 mr-3"></i>
+                                    <span class="text-sm font-medium text-gray-700">Kategori Menu</span>
+                                </div>
+                                <span class="text-lg font-bold text-purple-600">
+                                    <?php echo $conn->query("SELECT COUNT(*) as total FROM kategori_menu")->fetch_assoc()['total']; ?>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </main>
     </div>
 
     <script>
-        const catCtx = document.getElementById('categoryChart').getContext('2d');
-        const salesCtx = document.getElementById('salesChart').getContext('2d');
-
-        new Chart(catCtx, {
-            type: 'doughnut',
-            data: {
-                labels: <?php echo json_encode($cat_labels); ?>,
-                datasets: [{
-                    data: <?php echo json_encode($cat_data); ?>,
-                    backgroundColor: [
-                        '#A0C4FF', 
-                        '#FFADAD', 
-                        '#CAFFBF', 
-                        '#FDFFB6', 
-                        '#BDB2FF', 
-                        '#FFD6A5', 
-                        '#9BF6FF'
-                    ],
-                    borderWidth: 0,
-                    hoverOffset: 15
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'right', labels: { usePointStyle: true, pointStyle: 'circle' } }
+        document.addEventListener('DOMContentLoaded', function() {
+            const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+            
+            const categoryLabels = [
+                <?php
+                $cat_labels = [];
+                $cat_data = [];
+                $kategori_penjualan->data_seek(0);
+                while ($row = $kategori_penjualan->fetch_assoc()) {
+                    $cat_labels[] = "'" . htmlspecialchars($row['nama_kategori']) . "'";
+                    $cat_data[] = $row['total'];
+                }
+                if (empty($cat_labels)) {
+                    echo "'Makanan', 'Minuman', 'Dessert'";
+                    $cat_data = [100000, 50000, 30000];
+                } else {
+                    echo implode(', ', $cat_labels);
+                }
+                ?>
+            ];
+            
+            const categoryData = [<?php echo implode(', ', $cat_data); ?>];
+            
+            const categoryChart = new Chart(categoryCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: categoryLabels,
+                    datasets: [{
+                        data: categoryData,
+                        backgroundColor: [
+                            '#B7A087',
+                            '#10b981',
+                            '#8b5cf6',
+                            '#f59e0b',
+                            '#ef4444',
+                            '#3b82f6',
+                            '#ec4899'
+                        ],
+                        borderWidth: 0,
+                        hoverOffset: 15
+                    }]
                 },
-                cutout: '70%',
-            }
-        });
-
-        new Chart(salesCtx, {
-            type: 'line',
-            data: {
-                labels: <?php echo json_encode($daily_labels); ?>,
-                datasets: [{
-                    label: 'Pendapatan Harian',
-                    data: <?php echo json_encode($daily_data); ?>,
-                    borderColor: '#A0C4FF', 
-                    backgroundColor: 'rgba(160, 196, 255, 0.2)', 
-                    borderWidth: 3,
-                    tension: 0.4,
-                    fill: true,
-                    pointBackgroundColor: '#fff',
-                    pointBorderColor: '#A0C4FF',
-                    pointBorderWidth: 2,
-                    pointRadius: 4,
-                    pointHoverRadius: 6
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        mode: 'index',
-                        intersect: false,
-                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                        titleColor: '#333',
-                        bodyColor: '#333',
-                        borderColor: '#E5E7EB',
-                        borderWidth: 1,
-                        padding: 10,
-                        callbacks: {
-                            label: function(context) {
-                                let label = context.dataset.label || '';
-                                if (label) {
-                                    label += ': ';
-                                }
-                                if (context.parsed.y !== null) {
-                                    label += new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(context.parsed.y);
-                                }
-                                return label;
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true,
+                                font: {
+                                    size: 12,
+                                    family: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+                                },
+                                color: '#374151'
                             }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.raw || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = Math.round((value / total) * 100);
+                                    return `${label}: Rp ${value.toLocaleString('id-ID')} (${percentage}%)`;
+                                }
+                            },
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleFont: { size: 14 },
+                            bodyFont: { size: 13 }
                         }
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        grid: { borderDash: [2, 4], color: '#F3F4F6' },
-                        ticks: { font: { size: 11 } }
                     },
-                    x: {
-                        grid: { display: false },
-                        ticks: { font: { size: 11 } }
+                    cutout: '65%',
+                    animation: {
+                        animateScale: true,
+                        animateRotate: true,
+                        duration: 2000,
+                        easing: 'easeOutQuart'
                     }
                 }
-            }
+            });
         });
     </script>
 </body>
 </html>
+

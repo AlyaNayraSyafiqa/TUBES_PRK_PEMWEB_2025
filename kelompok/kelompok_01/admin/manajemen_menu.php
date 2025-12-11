@@ -14,7 +14,7 @@ $stmt->execute();
 $admin = $stmt->get_result()->fetch_assoc();
 
 if ($admin['role'] != 'admin') {
-    header("Location: ../index.php");
+    header("Location: login.php");
     exit();
 }
 

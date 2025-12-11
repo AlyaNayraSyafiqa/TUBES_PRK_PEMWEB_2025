@@ -210,7 +210,7 @@ $foto_display = !empty($foto_db) && file_exists('../' . $foto_db)
         <div class="flex items-center justify-center h-16 bg-pale-taupe">
             <div class="text-white text-center">
                 <h1 class="text-xl font-bold">EasyResto</h1>
-                <p class="text-xs text-white opacity-90">Role Kasir</p>
+                <p class="text-xs text-white opacity-90">Kasir Panel</p>
             </div>
         </div>
         

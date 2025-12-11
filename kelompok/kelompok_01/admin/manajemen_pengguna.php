@@ -1,5 +1,26 @@
 <?php
+session_start();
 include '../config.php';
+
+// Cek session dan role
+if (!isset($_SESSION['id_user'])) {
+    header("Location: ../login.php");
+    exit();
+}
+
+$user_id = $_SESSION['id_user'];
+
+// Ambil data admin berdasarkan session
+$stmt = $conn->prepare("SELECT * FROM users WHERE id_user = ?");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$admin = $stmt->get_result()->fetch_assoc();
+
+// Cek role, jika bukan admin redirect ke halaman yang sesuai
+if ($admin['role'] != 'admin') {
+    header("Location: ../index.php");
+    exit();
+}
 
 // Ambil data pengguna
 $users_result = $conn->query("SELECT * FROM users ORDER BY id_user");
@@ -46,11 +67,11 @@ if (isset($_GET['hapus'])) {
     exit();
 }
 
-// Ambil data admin untuk sidebar
-$admin_id = $_SESSION['id_user'];
-$admin = $conn->query("SELECT * FROM users WHERE id_user = $admin_id")->fetch_assoc();
-$default_avatar = 'https://ui-avatars.com/api/?name=' . urlencode($admin['nama'] ?? 'Admin');
-$foto_profil = !empty($admin['profile_picture']) ? '../' . $admin['profile_picture'] : $default_avatar;
+// Foto display untuk header
+$foto_display = 'https://ui-avatars.com/api/?name=' . urlencode($admin['nama'] ?? 'Admin') . '&background=B7A087&color=fff';
+if (!empty($admin['profile_picture']) && file_exists($admin['profile_picture'])) {
+    $foto_display = $admin['profile_picture'];
+}
 ?>
 
 <!DOCTYPE html>
@@ -68,26 +89,61 @@ $foto_profil = !empty($admin['profile_picture']) ? '../' . $admin['profile_pictu
                     colors: {
                         'antique-white': '#F7EBDF',
                         'pale-taupe': '#B7A087',
-                        'primary': '#B7A087',
-                        'secondary': '#F7EBDF'
+                        'dark-taupe': '#8B7355',
                     }
                 }
             }
         }
     </script>
     <style>
-        body { background-color: #F7EBDF; }
-        .sidebar { background: linear-gradient(to bottom, #B7A087, #8B7355); }
-        .card { background: white; border: 1px solid #E5D9C8; }
-        .btn-primary { background-color: #B7A087; color: white; }
-        .btn-primary:hover { background-color: #8B7355; }
+        body { 
+            background-color: #F7EBDF; 
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+        .sidebar { 
+            background: linear-gradient(to bottom, #B7A087, #8B7355); 
+        }
+        .btn-primary { 
+            background-color: #B7A087; 
+            color: white; 
+            transition: all 0.2s ease;
+        }
+        .btn-primary:hover { 
+            background-color: #8B7355; 
+            transform: translateY(-1px);
+        }
+        input:focus { 
+            outline: none !important; 
+            border-color: #B7A087 !important; 
+            box-shadow: 0 0 0 3px rgba(183, 160, 135, 0.1) !important; 
+        }
+        .card {
+            border: 1px solid #E5D9C8;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            transition: all 0.2s ease;
+        }
+        .card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+        }
+        .info-item {
+            padding: 12px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .info-item:last-child {
+            border-bottom: none;
+        }
+        .table-row:hover {
+            background-color: rgba(183, 160, 135, 0.08);
+        }
     </style>
 </head>
-<body class="bg-antique-white">
+<body class="bg-antique-white h-screen flex overflow-hidden">
+
     <!-- Sidebar -->
-    <div class="fixed inset-y-0 left-0 w-64 sidebar shadow-xl flex flex-col justify-between">
+    <div class="w-64 sidebar shadow-xl flex flex-col justify-between z-20 flex-shrink-0">
         <div>
-            <div class="flex items-center justify-center h-16 bg-pale-taupe">
+            <div class="h-16 flex items-center justify-center bg-pale-taupe">
                 <div class="text-white text-center">
                     <h1 class="text-xl font-bold">EasyResto</h1>
                     <p class="text-xs text-white opacity-90">Admin Panel</p>
@@ -99,21 +155,21 @@ $foto_profil = !empty($admin['profile_picture']) ? '../' . $admin['profile_pictu
                     <i class="fas fa-chart-line w-6"></i>
                     <span class="mx-3 font-medium">Dashboard</span>
                 </a>
-                <a href="manajemen_pengguna.php" class="flex items-center px-6 py-3 text-white bg-pale-taupe bg-opacity-40 border-l-4 border-white">
-                    <i class="fas fa-users w-6"></i>
-                    <span class="mx-3 font-medium">Manajemen Pengguna</span>
-                </a>
                 <a href="manajemen_menu.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
                     <i class="fas fa-utensils w-6"></i>
                     <span class="mx-3 font-medium">Manajemen Menu</span>
+                </a>
+                <a href="laporan_penjualan.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-file-invoice-dollar w-6"></i>
+                    <span class="mx-3 font-medium">Laporan Penjualan</span>
                 </a>
                 <a href="manajemen_transaksi.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
                     <i class="fas fa-cash-register w-6"></i>
                     <span class="mx-3 font-medium">Manajemen Transaksi</span>
                 </a>
-                <a href="laporan_penjualan.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
-                    <i class="fas fa-file-invoice-dollar w-6"></i>
-                    <span class="mx-3 font-medium">Laporan Penjualan</span>
+                <a href="manajemen_pengguna.php" class="flex items-center px-6 py-3 text-white bg-pale-taupe bg-opacity-40 border-l-4 border-white transition-all">
+                    <i class="fas fa-users w-6"></i>
+                    <span class="mx-3 font-medium">Manajemen Pengguna</span>
                 </a>
                 <a href="profil.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
                     <i class="fas fa-user-cog w-6"></i>
@@ -124,10 +180,10 @@ $foto_profil = !empty($admin['profile_picture']) ? '../' . $admin['profile_pictu
         
         <div class="p-4 bg-pale-taupe bg-opacity-80">
             <div class="flex items-center gap-3">
-                <img src="<?= $foto_profil ?>" class="w-10 h-10 rounded-full border-2 border-white object-cover">
+                <img src="<?= $foto_display ?>" class="w-10 h-10 rounded-full border-2 border-white object-cover">
                 <div class="overflow-hidden text-white">
-                    <p class="font-bold text-sm truncate leading-tight"><?= htmlspecialchars($_SESSION['nama']) ?></p>
-                    <p class="text-xs opacity-90">Role: Admin</p>
+                    <p class="font-bold text-sm truncate leading-tight"><?= htmlspecialchars($admin['nama'] ?? 'Admin') ?></p>
+                    <p class="text-xs opacity-90"><?= ucfirst($admin['role'] ?? 'Admin') ?></p>
                     <a href="../logout.php" class="text-xs text-red-200 hover:text-white flex items-center gap-1 mt-1 transition-colors">
                         <i class="fas fa-sign-out-alt"></i> Logout
                     </a>
@@ -136,23 +192,40 @@ $foto_profil = !empty($admin['profile_picture']) ? '../' . $admin['profile_pictu
         </div>
     </div>
 
-    <!-- Main Content -->
-    <div class="ml-64">
+    <div class="flex-1 flex flex-col h-full overflow-hidden">
         <!-- Header -->
-        <header class="bg-white shadow-sm border-b border-pale-taupe">
-            <div class="flex items-center justify-between px-8 py-4">
+        <header class="bg-white shadow-sm border-b border-[#E5D9C8] flex-shrink-0 px-8 py-4">
+            <div class="flex items-center justify-between">
                 <div>
                     <h1 class="text-2xl font-bold text-gray-800">Manajemen Pengguna</h1>
                     <p class="text-gray-600">Kelola akses pengguna sistem</p>
                 </div>
-                <button onclick="openAddModal()" class="flex items-center px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors">
-                    <i class="fas fa-user-plus mr-2"></i>
-                    Tambah Pengguna
-                </button>
+                <div class="flex items-center space-x-4">
+                    <div class="text-right hidden md:block">
+                        <p class="text-sm text-gray-600">Selamat datang</p>
+                        <p class="font-semibold text-gray-800"><?= htmlspecialchars($admin['nama'] ?? 'Admin') ?></p>
+                    </div>
+                    <a href="profil.php" class="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden border-2 border-pale-taupe">
+                        <img src="<?= $foto_display ?>" alt="Profil" class="w-full h-full object-cover">
+                    </a>
+                </div>
             </div>
         </header>
 
-        <main class="p-8">
+        <main class="flex-1 overflow-y-auto p-6 md:p-8">
+            <?php if (isset($success)): ?>
+                <div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-6 flex items-center">
+                    <i class="fas fa-check-circle mr-3 text-green-500"></i>
+                    <span><?= $success ?></span>
+                </div>
+            <?php endif; ?>
+            <?php if (isset($error)): ?>
+                <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 flex items-center">
+                    <i class="fas fa-exclamation-circle mr-3 text-red-500"></i>
+                    <span><?= $error ?></span>
+                </div>
+            <?php endif; ?>
+
             <!-- Stats -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                 <div class="bg-gradient-to-r from-pale-taupe to-amber-800 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-transform">
@@ -194,15 +267,18 @@ $foto_profil = !empty($admin['profile_picture']) ? '../' . $admin['profile_pictu
             </div>
 
             <!-- Users Table -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h3 class="text-lg font-semibold text-gray-800">Daftar Pengguna</h3>
-                            <p class="text-sm text-gray-600">Semua pengguna yang memiliki akses ke sistem (Total: <?php echo $total_users; ?> pengguna)</p>
-                        </div>
+            <div class="bg-white card p-6 mb-8">
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800">Daftar Pengguna</h3>
+                        <p class="text-sm text-gray-600">Semua pengguna yang memiliki akses ke sistem (Total: <?php echo $total_users; ?> pengguna)</p>
                     </div>
+                    <button onclick="openAddModal()" class="btn-primary px-4 py-2 rounded-lg font-semibold shadow-sm flex items-center">
+                        <i class="fas fa-user-plus mr-2"></i>
+                        Tambah Pengguna
+                    </button>
                 </div>
+                
                 <div class="overflow-x-auto">
                     <table class="w-full">
                         <thead class="bg-gray-50">
@@ -219,7 +295,7 @@ $foto_profil = !empty($admin['profile_picture']) ? '../' . $admin['profile_pictu
                         <tbody class="bg-white divide-y divide-gray-200">
                             <?php if ($total_users > 0): ?>
                                 <?php while ($user = $users_result->fetch_assoc()): ?>
-                                <tr class="hover:bg-pale-taupe hover:bg-opacity-10 transition-colors group">
+                                <tr class="table-row transition-colors">
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <span class="text-sm font-medium text-gray-900 bg-gray-100 px-2 py-1 rounded">#<?php echo $user['id_user']; ?></span>
                                     </td>
@@ -275,6 +351,10 @@ $foto_profil = !empty($admin['profile_picture']) ? '../' . $admin['profile_pictu
                                             <i class="fas fa-users text-4xl text-gray-400 mb-4"></i>
                                             <h3 class="text-lg font-medium text-gray-900 mb-2">Belum ada pengguna</h3>
                                             <p class="text-gray-600 mb-4">Tambahkan pengguna pertama Anda untuk memulai.</p>
+                                            <button onclick="openAddModal()" class="btn-primary px-4 py-2 rounded-lg font-semibold shadow-sm flex items-center">
+                                                <i class="fas fa-user-plus mr-2"></i>
+                                                Tambah Pengguna Pertama
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -299,23 +379,23 @@ $foto_profil = !empty($admin['profile_picture']) ? '../' . $admin['profile_pictu
                 <div class="space-y-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Nama Lengkap *</label>
-                        <input type="text" name="nama" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors" placeholder="Contoh: John Doe">
+                        <input type="text" name="nama" required class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-pale-taupe transition-colors" placeholder="Contoh: John Doe">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Username *</label>
-                        <input type="text" name="username" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors" placeholder="Contoh: johndoe">
+                        <input type="text" name="username" required class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-pale-taupe transition-colors" placeholder="Contoh: johndoe">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Password *</label>
-                        <input type="password" name="password" required minlength="6" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors" placeholder="Minimal 6 karakter">
+                        <input type="password" name="password" required minlength="6" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-pale-taupe transition-colors" placeholder="Minimal 6 karakter">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Nomor Telepon</label>
-                        <input type="tel" name="phone_number" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors" placeholder="Contoh: 081234567890">
+                        <input type="tel" name="phone_number" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-pale-taupe transition-colors" placeholder="Contoh: 081234567890">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Role *</label>
-                        <select name="role" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors">
+                        <select name="role" required class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-pale-taupe transition-colors">
                             <option value="">Pilih Role</option>
                             <option value="admin">Admin</option>
                             <option value="kasir">Kasir</option>
@@ -325,7 +405,7 @@ $foto_profil = !empty($admin['profile_picture']) ? '../' . $admin['profile_pictu
                 </div>
                 <div class="flex justify-end space-x-3 mt-8">
                     <button type="button" onclick="closeAddModal()" class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">Batal</button>
-                    <button type="submit" name="tambah_user" class="px-4 py-2 text-white bg-pale-taupe rounded-lg hover:bg-amber-800 transition-colors">
+                    <button type="submit" name="tambah_user" class="btn-primary px-4 py-2 rounded-lg font-semibold shadow-sm">
                         <i class="fas fa-user-plus mr-2"></i>Tambah Pengguna
                     </button>
                 </div>

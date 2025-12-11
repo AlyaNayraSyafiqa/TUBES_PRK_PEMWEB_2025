@@ -79,4 +79,4 @@ Jika ingin menjalankan di `localhost` (XAMPP/Laragon):
     $db   = "easyresto"; // Sesuaikan nama database
     ```
 4.  Buka browser dan akses path proyek:
-    `http://localhost/TUBES/TUBES_PRK_PEMWEB_2025/kelompok/kelompok_01/` jika pakai folder tambahan TUBES (bisa lebih rapih), kalo tidak pakai folder TUBES tidak perlu di masukan
+    `http://localhost/TUBES/TUBES_PRK_PEMWEB_2025/kelompok/kelompok_01/` jika pakai folder tambahan TUBES (bisa lebih rapih), kalo tidak pakai folder TUBES tidak perlu di masukan.

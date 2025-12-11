@@ -16,7 +16,7 @@ $foto_db = $data_user['profile_picture'];
 
 $foto = !empty($foto_db) && file_exists('../' . $foto_db) 
     ? '../' . $foto_db 
-    : 'https://ui-avatars.com/api/?name=' . urlencode($nama_user);
+    : 'https://ui-avatars.com/api/?name=' . urlencode($nama_user) . '&background=B7A087&color=fff';
 
 $start_date = $_GET['start_date'] ?? date('Y-m-01');
 $end_date = $_GET['end_date'] ?? date('Y-m-t');

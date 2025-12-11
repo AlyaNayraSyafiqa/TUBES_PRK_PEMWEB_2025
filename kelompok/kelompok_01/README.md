@@ -11,7 +11,7 @@ Proyek ini dikembangkan sebagai **Tugas Besar Pemrograman Web** untuk menciptaka
 | :--- | :--- | :--- |
 | **2315061001** | **Alya Nayra Syafiqa** | **Project Manager, Database & *Semua halaman role Kasir dan Fixing Admin (Manajemen Menu, Dashboard dan Laporan)*** |
 | **2315061033** | **Saskiya Dwi Septiani** | **ERD dan Semua Halaman role Owner, Serta Fixing Admin (Manajemen User, Manajemen Transaksi dan Profile)**  |
-| **2315061045** | **Dewi Resmiyanti** | **Halaman Role Admin (Sistem Transaksi, Cetak Struk)** |
+| **2315061045** | **Dewi Resmiyanti** | **Halaman Role Admin** |
 | **2215061095** | **Yosi Arjunita Putri** | - |
 
 
@@ -63,7 +63,7 @@ Jika ingin menjalankan di `localhost` (XAMPP/Laragon):
 
 1.  Clone repository ini:
     ```bash
-    git clone [https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025.git](https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025.git)
+    git clone https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025.git
     ```
 2.  Import file database (`easyresto.sql`) ke phpMyAdmin ataupun HeidiSQL.
 3.  Sesuaikan konfigurasi database di `config.php`:

@@ -60,8 +60,13 @@ Dibangun menggunakan teknologi web standar untuk memastikan performa yang ringan
 ## Instalasi Lokal
 
 Jika ingin menjalankan di `localhost` (XAMPP/Laragon):
-
-1.  Clone repository ini:
+1. Buat folder lokal di folder www jika pakai laragon, atau di htdocs jika pakai xampp (misal : TUBES)
+2. Lalu masuk ke vscode/gitbash, masuk ke folder tersebut
+3. Pada terminal, masukan perintah
+   ```bash
+    git init
+    ```
+4. Clone repository ini:
     ```bash
     git clone https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025.git
     ```
@@ -74,4 +79,4 @@ Jika ingin menjalankan di `localhost` (XAMPP/Laragon):
     $db   = "easyresto"; // Sesuaikan nama database
     ```
 4.  Buka browser dan akses path proyek:
-    `http://localhost/TUBES_PRK_PEMWEB_2025/kelompok/kelompok_01/`
+    `http://localhost/TUBES/TUBES_PRK_PEMWEB_2025/kelompok/kelompok_01/` jika pakai folder tamabahan TUBES (bisa lebih rapih), kalo tidak pakai folder TUBES tidak perlu di masukan

@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS `detail_transaksi` (
   KEY `id_menu` (`id_menu`),
   CONSTRAINT `detail_transaksi_ibfk_1` FOREIGN KEY (`id_transaksi`) REFERENCES `transaksi` (`id_transaksi`),
   CONSTRAINT `detail_transaksi_ibfk_2` FOREIGN KEY (`id_menu`) REFERENCES `menu` (`id_menu`)
-) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=23 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 INSERT INTO `detail_transaksi` (`id_detail`, `id_transaksi`, `id_menu`, `jumlah`, `subtotal`) VALUES
 	(1, 1, 6, 1, 22000),
@@ -30,7 +30,22 @@ INSERT INTO `detail_transaksi` (`id_detail`, `id_transaksi`, `id_menu`, `jumlah`
 	(4, 1, 15, 1, 17000),
 	(5, 2, 20, 1, 29000),
 	(6, 2, 11, 1, 8000),
-	(7, 2, 18, 1, 18000);
+	(7, 2, 18, 1, 18000),
+	(8, 3, 6, 1, 22000),
+	(9, 3, 23, 1, 28000),
+	(10, 3, 11, 1, 8000),
+	(11, 3, 18, 1, 18000),
+	(12, 4, 6, 1, 22000),
+	(13, 4, 19, 1, 32000),
+	(14, 4, 17, 1, 20000),
+	(15, 5, 6, 1, 22000),
+	(16, 5, 20, 1, 29000),
+	(17, 5, 14, 1, 12000),
+	(18, 6, 10, 1, 34000),
+	(19, 6, 15, 1, 17000),
+	(20, 6, 17, 1, 20000),
+	(21, 7, 6, 1, 22000),
+	(22, 7, 21, 1, 33000);
 
 CREATE TABLE IF NOT EXISTS `kategori_menu` (
   `id_kategori` int NOT NULL AUTO_INCREMENT,
@@ -65,7 +80,7 @@ CREATE TABLE IF NOT EXISTS `menu` (
   PRIMARY KEY (`id_menu`),
   KEY `id_kategori` (`id_kategori`),
   CONSTRAINT `menu_ibfk_1` FOREIGN KEY (`id_kategori`) REFERENCES `kategori_menu` (`id_kategori`)
-) ENGINE=InnoDB AUTO_INCREMENT=53 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=54 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 INSERT INTO `menu` (`id_menu`, `nama_menu`, `harga`, `id_kategori`, `foto`) VALUES
 	(1, 'Nasi Goreng Spesial', 25000, 1, '693953a7b2f81.jpg'),
@@ -90,7 +105,8 @@ INSERT INTO `menu` (`id_menu`, `nama_menu`, `harga`, `id_kategori`, `foto`) VALU
 	(20, 'Ayam Penyet Sambal Ijo', 29000, 1, '69394e66cf782.jpg'),
 	(21, 'Nasi Campur Bali', 33000, 1, '69394e9e21263.jpg'),
 	(22, 'Tongseng Kambing', 36000, 1, '69394ede7f429.jpg'),
-	(23, 'Mie Aceh', 28000, 1, '69394e5aca4ae.jpg');
+	(23, 'Mie Aceh', 28000, 1, '69394e5aca4ae.jpg'),
+	(53, 'Jus Mangga', 10000, 2, '693aa4d09b591._edit.webp');
 
 CREATE TABLE IF NOT EXISTS `transaksi` (
   `id_transaksi` int NOT NULL AUTO_INCREMENT,
@@ -101,11 +117,16 @@ CREATE TABLE IF NOT EXISTS `transaksi` (
   `service` int DEFAULT '0',
   `total` int DEFAULT '0',
   PRIMARY KEY (`id_transaksi`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 INSERT INTO `transaksi` (`id_transaksi`, `nama_pelanggan`, `tanggal`, `subtotal`, `ppn`, `service`, `total`) VALUES
 	(1, 'zira', '2025-12-10 07:42:58', 88000, 8800, 2200, 99000),
-	(2, 'naya', '2025-12-10 11:10:48', 55000, 5500, 1375, 61875);
+	(2, 'naya', '2025-12-10 11:10:48', 55000, 5500, 1375, 61875),
+	(3, 'rizal', '2025-12-10 11:33:02', 76000, 7600, 1900, 85500),
+	(4, 'aya', '2025-12-11 05:00:09', 74000, 7400, 1850, 83250),
+	(5, 'alya', '2025-12-11 11:48:03', 63000, 6300, 1575, 70875),
+	(6, 'alya nayra', '2025-12-11 11:49:27', 71000, 7100, 1775, 79875),
+	(7, 'alya', '2025-12-11 12:33:46', 55000, 5500, 1375, 61875);
 
 CREATE TABLE IF NOT EXISTS `users` (
   `id_user` int NOT NULL AUTO_INCREMENT,
@@ -121,8 +142,8 @@ CREATE TABLE IF NOT EXISTS `users` (
 
 INSERT INTO `users` (`id_user`, `username`, `password`, `role`, `nama`, `phone_number`, `profile_picture`) VALUES
 	(1, 'admin', 'admin123', 'admin', 'Admin User', NULL, NULL),
-	(2, 'owner', 'owner123', 'owner', 'Owner User', NULL, NULL),
-	(3, 'kasir', '6d2f2d182c03040daeddbd634291813b', 'kasir', 'Alya Nayra Syafiqa', '082167576527', 'uploads/profil/69390e8190453_1765346945.jpg');
+	(2, 'owner', 'owner123', 'owner', 'Owner User', NULL, '../uploads/profil/693abe00ab26c_1765457408.jpg'),
+	(3, 'kasir', '6d2f2d182c03040daeddbd634291813b', 'kasir', 'Alya Nayra Syafiqa', '082167576527', 'uploads/profil/693aaf29773fc_1765453609.jpg');
 
 SET @OLDTMP_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO';
 DELIMITER //

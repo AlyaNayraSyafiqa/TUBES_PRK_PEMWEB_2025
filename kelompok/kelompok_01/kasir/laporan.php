@@ -14,7 +14,6 @@ $data_user = $query_user->fetch_assoc();
 $nama_user = $data_user['nama'];
 $foto_db = $data_user['profile_picture'];
 
-// UPDATE: Warna background avatar disesuaikan (B7A087)
 $foto = !empty($foto_db) && file_exists('../' . $foto_db) 
     ? '../' . $foto_db 
     : 'https://ui-avatars.com/api/?name=' . urlencode($nama_user) . '&background=B7A087&color=fff';
@@ -103,6 +102,10 @@ $avg_transaction = $summary['total_transaksi'] > 0 ? $summary['total_final'] / $
             
             <nav class="mt-8">
                 <a href="dashboard.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-home w-6"></i>
+                    <span class="mx-3 font-medium">Dashboard</span>
+                </a>
+                <a href="transaksi.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
                     <i class="fas fa-cash-register w-6"></i>
                     <span class="mx-3 font-medium">Transaksi</span>
                 </a>
@@ -140,20 +143,25 @@ $avg_transaction = $summary['total_transaksi'] > 0 ? $summary['total_final'] / $
     </div>
 
     <div class="flex-1 flex flex-col h-full overflow-hidden relative">
-        <header class="bg-white shadow-sm border-b border-[#E5D9C8] flex-shrink-0 px-8 py-4 flex flex-col sm:flex-row justify-between items-center gap-4 no-print">
-            <div>
-                <h1 class="text-2xl font-bold text-gray-800">Laporan Penjualan</h1>
-                <p class="text-gray-500 text-sm mt-1">Ringkasan Transaksi </p>
-            </div>
-            
-            <div class="flex items-center gap-4">
-                <a href="profil_kasir.php" class="flex items-center gap-3 pl-4 border-l border-gray-200 hidden sm:flex hover:bg-gray-50 p-2 rounded-lg transition-colors cursor-pointer" title="Lihat Profil">
-                    <div class="text-right">
-                        <p class="text-xs text-gray-500">Selamat datang</p>
-                        <p class="font-bold text-gray-800 text-sm truncate max-w-[150px]"><?= htmlspecialchars($nama_user) ?></p>
+        
+        <header class="bg-white shadow-sm border-b border-pale-taupe flex-shrink-0 no-print">
+            <div class="flex items-center justify-between px-8 py-4">
+                
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-800">Laporan Penjualan</h1>
+                    <p class="text-gray-600 text-sm mt-1">Ringkasan Transaksi</p>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <div class="text-right hidden sm:block">
+                        <p class="text-sm text-gray-600">Selamat datang</p>
+                        <p class="font-semibold text-gray-800"><?= htmlspecialchars($nama_user) ?></p>
                     </div>
-                    <img src="<?= $foto ?>" class="w-10 h-10 rounded-full border border-gray-200 object-cover p-0.5">
-                </a>
+                    <a href="profil_kasir.php" class="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden border-2 border-pale-taupe cursor-pointer transition-transform hover:scale-105">
+                        <img src="<?= $foto ?>" class="w-full h-full object-cover">
+                    </a>
+                </div>
+
             </div>
         </header>
 

@@ -83,6 +83,7 @@ Jika ingin menjalankan di `localhost` (XAMPP/Laragon):
 
 ## Tampilan
 Kasir
+kelompok/kelompok_01/tampilanweb/cetakstrukkasir.png
 https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/dashboardkasir.png
 https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/cetakstrukkasir.png
 https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/laporankasir.png

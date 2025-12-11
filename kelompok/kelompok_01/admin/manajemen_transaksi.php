@@ -2,7 +2,6 @@
 session_start();
 include '../config.php';
 
-// Cek session
 if (!isset($_SESSION['id_user'])) {
     header("Location: ../login.php");
     exit();
@@ -10,13 +9,11 @@ if (!isset($_SESSION['id_user'])) {
 
 $user_id = $_SESSION['id_user'];
 
-// Ambil data admin
 $stmt = $conn->prepare("SELECT * FROM users WHERE id_user = ?");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $admin = $stmt->get_result()->fetch_assoc();
 
-// Cek role
 if ($admin['role'] != 'admin') {
     header("Location: ../index.php");
     exit();
@@ -176,7 +173,6 @@ if (!empty($admin['profile_picture']) && file_exists($admin['profile_picture']))
         </header>
 
         <main class="flex-1 overflow-y-auto p-6 md:p-8">
-            <!-- Filter Section -->
             <div class="bg-white card p-6 mb-8">
                 <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
                     <i class="fas fa-filter text-pale-taupe mr-2"></i> Filter Transaksi
@@ -206,7 +202,6 @@ if (!empty($admin['profile_picture']) && file_exists($admin['profile_picture']))
                 </form>
             </div>
 
-            <!-- Summary Cards -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <div class="bg-gradient-to-r from-pale-taupe to-amber-800 rounded-xl shadow-lg p-6 text-white">
                     <div class="flex items-center justify-between">
@@ -317,7 +312,6 @@ if (!empty($admin['profile_picture']) && file_exists($admin['profile_picture']))
                     </table>
                 </div>
                 
-                <!-- Footer Table -->
                 <div class="px-6 py-4 border-t bg-gray-50">
                     <div class="flex items-center justify-between">
                         <div class="text-sm text-gray-600">
@@ -334,7 +328,6 @@ if (!empty($admin['profile_picture']) && file_exists($admin['profile_picture']))
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Tidak ada event listener untuk logout
         });
     </script>
 </body>

@@ -1,6 +1,6 @@
 <?php
 session_start();
-include 'config.php';
+include '../config.php';
 
 if (!isset($_SESSION['id_user'])) {
     $stmt = $conn->prepare("SELECT * FROM users WHERE role = 'owner' LIMIT 1");

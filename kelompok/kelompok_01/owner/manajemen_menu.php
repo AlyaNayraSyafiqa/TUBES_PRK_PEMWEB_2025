@@ -1,6 +1,6 @@
 <?php
 session_start();
-include 'config.php';
+include '../config.php';
 
 $kategori_result = $conn->query("SELECT * FROM kategori_menu");
 

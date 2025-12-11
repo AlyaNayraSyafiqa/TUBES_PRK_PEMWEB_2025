@@ -1,6 +1,6 @@
 <?php
 session_start();
-include 'config.php';
+include '../config.php';
 
 $users_result = $conn->query("SELECT * FROM users ORDER BY id_user");
 

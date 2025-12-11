@@ -2,83 +2,164 @@
 session_start();
 include '../config.php';
 
+// Cek login
+if (!isset($_SESSION['id_user'])) {
+    header("Location: ../login.php");
+    exit();
+}
+
+$user_id = $_SESSION['id_user'];
+$stmt = $conn->prepare("SELECT * FROM users WHERE id_user = ?");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$owner = $stmt->get_result()->fetch_assoc();
+
+// Hanya owner dan admin yang bisa akses
+if ($owner['role'] != 'owner' && $owner['role'] != 'admin') {
+    header("Location: login.php");
+    exit();
+}
+
+// Setup upload directory
+$upload_dir = '../uploads/menu/';
+if (!is_dir($upload_dir)) {
+    mkdir($upload_dir, 0777, true);
+}
+
+// Inisialisasi variabel
+$success = '';
+$error = '';
+$edit_data = null;
+
+// Query untuk statistik (dihapus dari tampilan tapi tetap di kode untuk kebutuhan lain)
 $kategori_result = $conn->query("SELECT * FROM kategori_menu");
 
 $total_result = $conn->query("SELECT COUNT(*) as total FROM menu");
 $total_row = $total_result->fetch_assoc();
 $total_menu = $total_row['total'];
 
-$makanan_result = $conn->query("SELECT COUNT(*) as total FROM menu WHERE id_kategori = 1");
-$makanan_row = $makanan_result->fetch_assoc();
-$makanan_count = $makanan_row['total'];
-
-$minuman_result = $conn->query("SELECT COUNT(*) as total FROM menu WHERE id_kategori = 2");
-$minuman_row = $minuman_result->fetch_assoc();
-$minuman_count = $minuman_row['total'];
-
-$dessert_result = $conn->query("SELECT COUNT(*) as total FROM menu WHERE id_kategori = 3");
-$dessert_row = $dessert_result->fetch_assoc();
-$dessert_count = $dessert_row['total'];
-
-$menu_display_result = $conn->query("
-    SELECT m.*, k.nama_kategori 
-    FROM menu m 
-    LEFT JOIN kategori_menu k ON m.id_kategori = k.id_kategori 
-    ORDER BY m.id_menu
-");
-
+// Handle Tambah Menu dengan Foto
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['tambah_menu'])) {
     $nama_menu = $_POST['nama_menu'];
     $harga = $_POST['harga'];
     $id_kategori = $_POST['id_kategori'];
-    
-    $stmt = $conn->prepare("INSERT INTO menu (nama_menu, harga, id_kategori) VALUES (?, ?, ?)");
-    $stmt->bind_param("sii", $nama_menu, $harga, $id_kategori);
-    
-    if ($stmt->execute()) {
-        $success = "Menu berhasil ditambahkan!";
-    } else {
-        $error = "Gagal menambahkan menu!";
+    $foto_nama = null;
+
+    // Handle file upload
+    if (isset($_FILES['foto']) && $_FILES['foto']['error'] == 0) {
+        $allowed = ['jpg', 'jpeg', 'png', 'webp'];
+        $filename = $_FILES['foto']['name'];
+        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        
+        if (in_array($ext, $allowed)) {
+            $new_filename = uniqid() . '.' . $ext;
+            $dest = $upload_dir . $new_filename;
+            if (move_uploaded_file($_FILES['foto']['tmp_name'], $dest)) {
+                $foto_nama = $new_filename;
+            } else {
+                $error = "Gagal mengupload foto.";
+            }
+        } else {
+            $error = "Format foto tidak valid (hanya jpg, jpeg, png, webp).";
+        }
     }
-    header("Location: manajemen_menu.php");
-    exit();
+
+    if (empty($error)) {
+        $stmt = $conn->prepare("INSERT INTO menu (nama_menu, harga, id_kategori, foto) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("siis", $nama_menu, $harga, $id_kategori, $foto_nama);
+        if ($stmt->execute()) {
+            $success = "Menu berhasil ditambahkan!";
+        } else {
+            $error = "Gagal menambahkan menu ke database.";
+        }
+    }
 }
 
+// Handle Edit Menu dengan Foto
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_menu'])) {
     $id_menu = $_POST['id_menu'];
     $nama_menu = $_POST['nama_menu'];
     $harga = $_POST['harga'];
     $id_kategori = $_POST['id_kategori'];
     
-    $stmt = $conn->prepare("UPDATE menu SET nama_menu = ?, harga = ?, id_kategori = ? WHERE id_menu = ?");
-    $stmt->bind_param("siii", $nama_menu, $harga, $id_kategori, $id_menu);
-    
-    if ($stmt->execute()) {
-        $success = "Menu berhasil diupdate!";
-    } else {
-        $error = "Gagal mengupdate menu!";
+    // Get old foto
+    $stmt_old = $conn->prepare("SELECT foto FROM menu WHERE id_menu = ?");
+    $stmt_old->bind_param("i", $id_menu);
+    $stmt_old->execute();
+    $old_foto = $stmt_old->get_result()->fetch_assoc()['foto'];
+    $foto_nama = $old_foto;
+
+    // Handle new file upload if exists
+    if (isset($_FILES['foto']) && $_FILES['foto']['error'] == 0) {
+        $allowed = ['jpg', 'jpeg', 'png', 'webp'];
+        $filename = $_FILES['foto']['name'];
+        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        
+        if (in_array($ext, $allowed)) {
+            $new_filename = uniqid() . '_edit.' . $ext;
+            $dest = $upload_dir . $new_filename;
+            if (move_uploaded_file($_FILES['foto']['tmp_name'], $dest)) {
+                // Delete old photo if exists
+                if ($old_foto && file_exists($upload_dir . $old_foto)) {
+                    unlink($upload_dir . $old_foto);
+                }
+                $foto_nama = $new_filename;
+            } else {
+                $error = "Gagal mengupload foto baru.";
+            }
+        } else {
+            $error = "Format foto tidak valid.";
+        }
     }
-    header("Location: manajemen_menu.php");
-    exit();
+
+    if (empty($error)) {
+        $stmt = $conn->prepare("UPDATE menu SET nama_menu=?, harga=?, id_kategori=?, foto=? WHERE id_menu=?");
+        $stmt->bind_param("siisi", $nama_menu, $harga, $id_kategori, $foto_nama, $id_menu);
+        if ($stmt->execute()) {
+            $success = "Menu berhasil diperbarui!";
+        } else {
+            $error = "Gagal memperbarui menu.";
+        }
+    }
 }
 
+// Handle Delete Menu dengan hapus foto
 if (isset($_GET['hapus'])) {
-    $id_menu = intval($_GET['hapus']);
+    $id_menu = $_GET['hapus'];
+    
+    // Get menu data first to delete photo
+    $stmt = $conn->prepare("SELECT foto FROM menu WHERE id_menu = ?");
+    $stmt->bind_param("i", $id_menu);
+    $stmt->execute();
+    $menu = $stmt->get_result()->fetch_assoc();
 
-    $stmt_del = $conn->prepare("DELETE FROM menu WHERE id_menu = ?");
-    $stmt_del->bind_param("i", $id_menu);
-    $stmt_del->execute();
-
-    $max_result = $conn->query("SELECT MAX(id_menu) as max_id FROM menu");
-    $max_row = $max_result->fetch_assoc();
-    $next_ai = ($max_row && $max_row['max_id']) ? (intval($max_row['max_id']) + 1) : 1;
-    $conn->query("ALTER TABLE menu AUTO_INCREMENT = " . $next_ai);
-
-    header("Location: manajemen_menu.php");
+    if ($menu) {
+        // Delete photo if exists
+        if ($menu['foto'] && file_exists($upload_dir . $menu['foto'])) {
+            unlink($upload_dir . $menu['foto']);
+        }
+        
+        // Delete from database
+        $stmt_del = $conn->prepare("DELETE FROM menu WHERE id_menu = ?");
+        $stmt_del->bind_param("i", $id_menu);
+        if ($stmt_del->execute()) {
+            $success = "Menu berhasil dihapus!";
+            
+            // Reset AUTO_INCREMENT
+            $max_result = $conn->query("SELECT MAX(id_menu) as max_id FROM menu");
+            $max_row = $max_result->fetch_assoc();
+            $next_ai = ($max_row && $max_row['max_id']) ? (intval($max_row['max_id']) + 1) : 1;
+            $conn->query("ALTER TABLE menu AUTO_INCREMENT = " . $next_ai);
+        } else {
+            $error = "Gagal menghapus menu dari database.";
+        }
+    }
+    
+    header("Location: manajemen_menu.php" . ($success ? "?success=".urlencode($success) : "") . ($error ? "?error=".urlencode($error) : ""));
     exit();
 }
 
-$edit_data = null;
+// Get data for edit
 if (isset($_GET['edit'])) {
     $id_edit = $_GET['edit'];
     $edit_result = $conn->query("
@@ -92,24 +173,25 @@ if (isset($_GET['edit'])) {
     }
 }
 
-$owner_result = $conn->query("SELECT * FROM users WHERE role = 'owner' LIMIT 1");
-$owner = $owner_result->fetch_assoc();
+// Get all menu for display
+$menu_display_result = $conn->query("
+    SELECT m.*, k.nama_kategori 
+    FROM menu m 
+    LEFT JOIN kategori_menu k ON m.id_kategori = k.id_kategori 
+    ORDER BY m.id_menu DESC
+");
 
-if (!$owner) {
-    $user_result = $conn->query("SELECT * FROM users WHERE role = 'admin' LIMIT 1");
-    $owner = $user_result->fetch_assoc();
-}
+// Get success/error from URL
+if (isset($_GET['success'])) $success = $_GET['success'];
+if (isset($_GET['error'])) $error = $_GET['error'];
 
-if (!$owner) {
-    $user_result = $conn->query("SELECT * FROM users LIMIT 1");
-    $owner = $user_result->fetch_assoc();
-}
-
+// Profile picture setup
 $foto_display = 'https://ui-avatars.com/api/?name=' . urlencode($owner['nama'] ?? 'Owner') . '&background=B7A087&color=fff';
 if (!empty($owner['profile_picture']) && file_exists($owner['profile_picture'])) {
     $foto_display = $owner['profile_picture'];
 }
 
+// Reset pointer untuk kategori
 $kategori_result->data_seek(0);
 ?>
 
@@ -129,7 +211,8 @@ $kategori_result->data_seek(0);
                         'antique-white': '#F7EBDF',
                         'pale-taupe': '#B7A087',
                         'primary': '#B7A087',
-                        'secondary': '#F7EBDF'
+                        'secondary': '#F7EBDF',
+                        'dark-taupe': '#8B7355'
                     }
                 }
             }
@@ -138,6 +221,7 @@ $kategori_result->data_seek(0);
     <style>
         body {
             background-color: #F7EBDF;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
         }
         .sidebar {
             background: linear-gradient(to bottom, #B7A087, #8B7355);
@@ -145,62 +229,72 @@ $kategori_result->data_seek(0);
         .card {
             background: white;
             border: 1px solid #E5D9C8;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
         }
         .btn-primary {
             background-color: #B7A087;
             color: white;
+            transition: all 0.2s ease;
         }
         .btn-primary:hover {
             background-color: #8B7355;
+            transform: translateY(-1px);
         }
-        .btn-success {
-            background-color: #28a745;
-            color: white;
+        .table-row:hover {
+            background-color: rgba(183, 160, 135, 0.08);
         }
-        .btn-success:hover {
-            background-color: #218838;
+        .modal {
+            transition: opacity 0.25s ease;
+        }
+        body.modal-active {
+            overflow-x: hidden;
+            overflow-y: visible !important;
         }
     </style>
 </head>
-<body class="bg-antique-white">
+<body class="bg-antique-white h-screen flex overflow-hidden">
+
     <!-- Sidebar -->
-    <div class="fixed inset-y-0 left-0 w-64 sidebar shadow-xl">
-        <div class="flex items-center justify-center h-16 bg-pale-taupe">
-            <div class="text-white">
-                <h1 class="text-xl font-bold">EasyResto</h1>
-                <p class="text-xs text-white opacity-90">Owner Panel</p>
+    <div class="w-64 sidebar shadow-xl flex flex-col justify-between z-20 flex-shrink-0">
+        <div>
+            <div class="h-16 flex items-center justify-center bg-pale-taupe">
+                <div class="text-white text-center">
+                    <h1 class="text-xl font-bold">EasyResto</h1>
+                    <p class="text-xs text-white opacity-90">Owner Panel</p>
+                </div>
             </div>
+            
+            <nav class="mt-8">
+                <a href="dashboard.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-chart-line w-6"></i>
+                    <span class="mx-3 font-medium">Dashboard</span>
+                </a>
+                <a href="laporan_penjualan.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-file-invoice-dollar w-6"></i>
+                    <span class="mx-3 font-medium">Laporan Penjualan</span>
+                </a>
+                <a href="manajemen_menu.php" class="flex items-center px-6 py-3 text-white bg-pale-taupe bg-opacity-40 border-l-4 border-white transition-all">
+                    <i class="fas fa-utensils w-6"></i>
+                    <span class="mx-3 font-medium">Manajemen Menu</span>
+                </a>
+                <a href="manajemen_pengguna.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-users w-6"></i>
+                    <span class="mx-3 font-medium">Manajemen Pengguna</span>
+                </a>
+                <a href="profil.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-user-cog w-6"></i>
+                    <span class="mx-3 font-medium">Profil</span>
+                </a>
+            </nav>
         </div>
         
-        <nav class="mt-8">
-            <a href="dashboard.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
-                <i class="fas fa-chart-line w-6"></i>
-                <span class="mx-3 font-medium">Dashboard</span>
-            </a>
-            <a href="laporan_penjualan.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
-                <i class="fas fa-file-invoice-dollar w-6"></i>
-                <span class="mx-3 font-medium">Laporan Penjualan</span>
-            </a>
-            <a href="manajemen_menu.php" class="flex items-center px-6 py-3 text-white bg-pale-taupe bg-opacity-40 border-l-4 border-white">
-                <i class="fas fa-utensils w-6"></i>
-                <span class="mx-3 font-medium">Manajemen Menu</span>
-            </a>
-            <a href="manajemen_pengguna.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
-                <i class="fas fa-users w-6"></i>
-                <span class="mx-3 font-medium">Manajemen Pengguna</span>
-            </a>
-            <a href="profil.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
-                <i class="fas fa-user-cog w-6"></i>
-                <span class="mx-3 font-medium">Profil</span>
-            </a>
-        </nav>
-
-        <div class="absolute bottom-0 w-full p-4 bg-pale-taupe bg-opacity-80">
+        <div class="p-4 bg-pale-taupe bg-opacity-80">
             <div class="flex items-center gap-3">
                 <img src="<?= $foto_display ?>" class="w-10 h-10 rounded-full border-2 border-white object-cover">
                 <div class="overflow-hidden text-white">
                     <p class="font-bold text-sm truncate leading-tight"><?= htmlspecialchars($owner['nama'] ?? 'Owner') ?></p>
-                    <p class="text-xs opacity-90"><?= ucfirst($owner['role'] ?? 'Admin') ?></p>
+                    <p class="text-xs opacity-90"><?= ucfirst($owner['role'] ?? 'Owner') ?></p>
                     <a href="../logout.php" class="text-xs text-red-200 hover:text-white flex items-center gap-1 mt-1 transition-colors">
                         <i class="fas fa-sign-out-alt"></i> Logout
                     </a>
@@ -209,15 +303,15 @@ $kategori_result->data_seek(0);
         </div>
     </div>
 
-    <div class="ml-64">
-        <header class="bg-white shadow-sm border-b border-pale-taupe">
-            <div class="flex items-center justify-between px-8 py-4">
+    <div class="flex-1 flex flex-col h-full overflow-hidden">
+        <header class="bg-white shadow-sm border-b border-pale-taupe flex-shrink-0 px-8 py-4">
+            <div class="flex items-center justify-between">
                 <div>
                     <h1 class="text-2xl font-bold text-gray-800">Manajemen Menu</h1>
-                    <p class="text-gray-600">Kelola menu dan harga makanan</p>
+                    <p class="text-gray-600">Kelola daftar menu makanan dan minuman</p>
                 </div>
                 <div class="flex items-center space-x-4">
-                    <div class="text-right">
+                    <div class="text-right hidden md:block">
                         <p class="text-sm text-gray-600">Selamat datang</p>
                         <p class="font-semibold text-gray-800"><?= htmlspecialchars($owner['nama'] ?? 'Owner') ?></p>
                     </div>
@@ -228,141 +322,71 @@ $kategori_result->data_seek(0);
             </div>
         </header>
 
-        <main class="p-8">
-            <?php
-            $debug_total = $conn->query("SELECT COUNT(*) as total FROM menu")->fetch_assoc()['total'];
-            ?>
-            <!-- <div class="mb-4 p-4 bg-yellow-100 border border-yellow-300 rounded">
-                <p class="text-sm">DEBUG: Total menu di database: <?php echo $debug_total; ?></p>
-                <p class="text-sm">Total menu yang ditampilkan: <?php echo $total_menu; ?></p>
-            </div> -->
+        <main class="flex-1 overflow-y-auto p-6 md:p-8">
+            <?php if ($success): ?>
+                <div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-6 flex items-center">
+                    <i class="fas fa-check-circle mr-3 text-green-500"></i><span><?= htmlspecialchars($success) ?></span>
+                </div>
+            <?php endif; ?>
+            <?php if ($error): ?>
+                <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 flex items-center">
+                    <i class="fas fa-exclamation-circle mr-3 text-red-500"></i><span><?= htmlspecialchars($error) ?></span>
+                </div>
+            <?php endif; ?>
 
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                <div class="bg-gradient-to-r from-pale-taupe to-amber-800 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-transform">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-white text-sm font-medium">Total Menu</p>
-                            <p class="text-2xl font-bold"><?php echo $total_menu; ?></p>
-                        </div>
-                        <i class="fas fa-utensils text-2xl opacity-80"></i>
+            <!-- Daftar Menu (tanpa statistik cards) -->
+            <div class="bg-white card p-6 mb-8">
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800">Daftar Menu</h3>
+                        <p class="text-sm text-gray-600">Total: <?php echo $total_menu; ?> item</p>
                     </div>
+                    <button onclick="toggleModal('addModal')" class="btn-primary px-4 py-2 rounded-lg font-semibold shadow-sm flex items-center">
+                        <i class="fas fa-plus mr-2"></i> Tambah Menu
+                    </button>
                 </div>
-                <div class="bg-gradient-to-r from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-transform">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-green-100 text-sm font-medium">Menu Makanan</p>
-                            <p class="text-2xl font-bold"><?php echo $makanan_count; ?></p>
-                        </div>
-                        <i class="fas fa-pizza-slice text-2xl opacity-80"></i>
-                    </div>
-                </div>
-                <div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-transform">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-blue-100 text-sm font-medium">Menu Minuman</p>
-                            <p class="text-2xl font-bold"><?php echo $minuman_count; ?></p>
-                        </div>
-                        <i class="fas fa-cocktail text-2xl opacity-80"></i>
-                    </div>
-                </div>
-                <div class="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-transform">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-purple-100 text-sm font-medium">Menu Makanan Penutup</p>
-                            <p class="text-2xl font-bold"><?php echo $dessert_count; ?></p>
-                        </div>
-                        <i class="fas fa-ice-cream text-2xl opacity-80"></i>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h3 class="text-lg font-semibold text-gray-800">Daftar Menu</h3>
-                            <p class="text-sm text-gray-600">Semua menu yang tersedia di restoran (Total: <?php echo $total_menu; ?> menu)</p>
-                        </div>
-                        <div class="flex space-x-2">
-                            <button onclick="openAddModal()" class="flex items-center px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors">
-                                <i class="fas fa-plus mr-2"></i>
-                                Tambah Menu
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                
                 <div class="overflow-x-auto">
-                    <table class="w-full">
+                    <table class="w-full whitespace-nowrap">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">ID</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Nama Menu</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Kategori</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Harga</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Aksi</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Foto</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Nama Menu</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Kategori</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Harga</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Aksi</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
                             <?php if ($total_menu > 0): ?>
                                 <?php while ($menu = $menu_display_result->fetch_assoc()): ?>
-                                <tr class="hover:bg-pale-taupe hover:bg-opacity-10 transition-colors group">
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <span class="text-sm font-medium text-gray-900 bg-gray-100 px-2 py-1 rounded">#<?php echo $menu['id_menu']; ?></span>
+                                <tr class="table-row transition-colors">
+                                    <td class="px-6 py-4">
+                                        <?php if($menu['foto'] && file_exists($upload_dir . $menu['foto'])): ?>
+                                            <img src="<?= $upload_dir . $menu['foto'] ?>" alt="<?= htmlspecialchars($menu['nama_menu']) ?>" class="w-16 h-16 object-cover rounded-lg border border-gray-200">
+                                        <?php else: ?>
+                                            <div class="w-16 h-16 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center text-gray-400">
+                                                <i class="fas fa-image"></i>
+                                            </div>
+                                        <?php endif; ?>
                                     </td>
                                     <td class="px-6 py-4">
-                                        <div class="text-sm font-medium text-gray-900"><?php echo $menu['nama_menu']; ?></div>
-                                        <div class="text-xs text-gray-500 mt-1">ID: <?php echo $menu['id_menu']; ?></div>
+                                        <div class="text-sm font-medium text-gray-900"><?= htmlspecialchars($menu['nama_menu']) ?></div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <span class="inline-flex px-3 py-1 text-xs font-semibold rounded-full 
-                                            <?php 
-                                            $kategori_nama = $menu['nama_kategori'];
-                                            if ($kategori_nama == 'Makanan') {
-                                                echo 'bg-green-100 text-green-800 border border-green-200';
-                                            } elseif ($kategori_nama == 'Minuman') {
-                                                echo 'bg-blue-100 text-blue-800 border border-blue-200';
-                                            } elseif ($kategori_nama == 'Makanan Penutup') {
-                                                echo 'bg-purple-100 text-purple-800 border border-purple-200';
-                                            } else {
-                                                echo 'bg-gray-100 text-gray-800 border border-gray-200';
-                                            }
-                                            ?>">
-                                            <i class="fas 
-                                                <?php 
-                                                if ($kategori_nama == 'Makanan') {
-                                                    echo 'fa-utensils';
-                                                } elseif ($kategori_nama == 'Minuman') {
-                                                    echo 'fa-glass-whiskey';
-                                                } elseif ($kategori_nama == 'Makanan Penutup') {
-                                                    echo 'fa-ice-cream';
-                                                } else {
-                                                    echo 'fa-question';
-                                                }
-                                                ?> 
-                                                mr-1"></i>
-                                            <?php echo $menu['nama_kategori']; ?>
+                                    <td class="px-6 py-4">
+                                        <span class="inline-flex px-3 py-1 text-xs font-semibold rounded-full bg-pale-taupe bg-opacity-20 text-dark-taupe">
+                                            <?= htmlspecialchars($menu['nama_kategori'] ?? 'Tanpa Kategori') ?>
                                         </span>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm font-semibold text-gray-900">
-                                            Rp <?php echo number_format($menu['harga'], 0, ',', '.'); ?>
-                                        </div>
+                                    <td class="px-6 py-4 text-sm font-semibold text-gray-900">
+                                        Rp <?= number_format($menu['harga'], 0, ',', '.') ?>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                        <button onclick="openEditModal(
-                                            <?php echo $menu['id_menu']; ?>, 
-                                            '<?php echo addslashes($menu['nama_menu']); ?>',
-                                            <?php echo $menu['harga']; ?>,
-                                            <?php echo $menu['id_kategori']; ?>
-                                        )" 
-                                                class="text-blue-600 hover:text-blue-900 mr-4 transition-colors">
-                                            <i class="fas fa-edit mr-1"></i>
-                                            Edit
+                                    <td class="px-6 py-4 text-sm font-medium space-x-3">
+                                        <button onclick='openEditModal(<?= json_encode($menu) ?>)' class="text-blue-600 hover:text-blue-900 transition-colors">
+                                            <i class="fas fa-edit mr-1"></i>Edit
                                         </button>
-                                        <button onclick="hapusMenu(<?php echo $menu['id_menu']; ?>)" 
-                                                class="text-red-600 hover:text-red-900 transition-colors">
-                                            <i class="fas fa-trash mr-1"></i>
-                                            Hapus
+                                        <button onclick="hapusMenu(<?= $menu['id_menu'] ?>, '<?= htmlspecialchars($menu['nama_menu'], ENT_QUOTES) ?>')" class="text-red-600 hover:text-red-900 transition-colors">
+                                            <i class="fas fa-trash mr-1"></i>Hapus
                                         </button>
                                     </td>
                                 </tr>
@@ -374,9 +398,8 @@ $kategori_result->data_seek(0);
                                             <i class="fas fa-utensils text-4xl text-gray-400 mb-4"></i>
                                             <h3 class="text-lg font-medium text-gray-900 mb-2">Belum ada menu</h3>
                                             <p class="text-gray-600 mb-4">Tambahkan menu pertama Anda untuk memulai.</p>
-                                            <button onclick="openAddModal()" class="flex items-center px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors">
-                                                <i class="fas fa-plus mr-2"></i>
-                                                Tambah Menu Pertama
+                                            <button onclick="toggleModal('addModal')" class="btn-primary px-4 py-2 rounded-lg font-semibold shadow-sm flex items-center">
+                                                <i class="fas fa-plus mr-2"></i> Tambah Menu Pertama
                                             </button>
                                         </div>
                                     </td>
@@ -385,164 +408,166 @@ $kategori_result->data_seek(0);
                         </tbody>
                     </table>
                 </div>
-                
-                <?php if ($total_menu > 0): ?>
-                <div class="px-6 py-4 border-t border-gray-200 bg-gray-50">
-                    <div class="flex items-center justify-between text-sm text-gray-600">
-                        <div>
-                            Menampilkan <span class="font-semibold"><?php echo $total_menu; ?></span> menu
-                        </div>
-                        <div class="text-gray-700">
-                            Rata-rata harga: <span class="font-semibold">
-                                Rp <?php 
-                                // Query terpisah untuk rata-rata harga
-                                $avg_result = $conn->query("SELECT AVG(harga) as avg_price FROM menu");
-                                $avg_row = $avg_result->fetch_assoc();
-                                $avg_price = $avg_row['avg_price'] ?? 0;
-                                echo number_format($avg_price, 0, ',', '.');
-                                ?>
-                            </span>
-                        </div>
-                    </div>
-                </div>
-                <?php endif; ?>
             </div>
         </main>
     </div>
 
-    <div id="addModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
-        <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-xl bg-white">
-            <div class="flex items-center justify-between mb-6">
-                <h3 class="text-lg font-semibold text-gray-800">Tambah Menu Baru</h3>
-                <button onclick="closeAddModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
-                    <i class="fas fa-times text-lg"></i>
-                </button>
+    <!-- Modal Tambah Menu -->
+    <div id="addModal" class="modal fixed inset-0 z-50 hidden overflow-y-auto">
+        <div class="modal-overlay absolute w-full h-full bg-gray-900 opacity-50"></div>
+        <div class="modal-container bg-white w-11/12 md:max-w-md mx-auto rounded shadow-lg z-50 overflow-y-auto my-10">
+            <div class="modal-content py-4 text-left px-6">
+                <div class="flex justify-between items-center pb-3">
+                    <p class="text-2xl font-bold text-gray-800">Tambah Menu Baru</p>
+                    <button onclick="toggleModal('addModal')" class="modal-close cursor-pointer z-50">
+                        <i class="fas fa-times text-gray-500 hover:text-gray-700"></i>
+                    </button>
+                </div>
+                <form method="POST" enctype="multipart/form-data" onsubmit="return validateAddForm()">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nama Menu *</label>
+                            <input type="text" name="nama_menu" required 
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-pale-taupe transition-colors"
+                                   placeholder="Contoh: Nasi Goreng Spesial">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Kategori *</label>
+                            <select name="id_kategori" required 
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-pale-taupe transition-colors">
+                                <option value="">Pilih Kategori</option>
+                                <?php 
+                                $kategori_result->data_seek(0);
+                                while ($kategori = $kategori_result->fetch_assoc()): ?>
+                                    <option value="<?php echo $kategori['id_kategori']; ?>">
+                                        <?php echo htmlspecialchars($kategori['nama_kategori']); ?>
+                                    </option>
+                                <?php endwhile; ?>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Harga (Rp) *</label>
+                            <input type="number" name="harga" required min="1000" step="500"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-pale-taupe transition-colors"
+                                   placeholder="Contoh: 25000">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Foto Menu</label>
+                            <input type="file" name="foto" accept="image/*" 
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-pale-taupe transition-colors text-sm">
+                            <p class="text-xs text-gray-500 mt-1">Format: jpg, jpeg, png, webp. (Opsional)</p>
+                        </div>
+                    </div>
+                    <div class="flex justify-end pt-6 space-x-3">
+                        <button type="button" onclick="toggleModal('addModal')" 
+                                class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+                            Batal
+                        </button>
+                        <button type="submit" name="tambah_menu" 
+                                class="btn-primary px-4 py-2 rounded-lg font-semibold">
+                            Simpan
+                        </button>
+                    </div>
+                </form>
             </div>
-            <form method="POST" onsubmit="return validateAddForm()">
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Nama Menu *</label>
-                        <input type="text" name="nama_menu" required 
-                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors"
-                               placeholder="Contoh: Nasi Goreng Spesial">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Harga (Rp) *</label>
-                        <input type="number" name="harga" required min="1000" step="500"
-                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors"
-                               placeholder="Contoh: 25000">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Kategori *</label>
-                        <select name="id_kategori" required 
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors">
-                            <option value="">Pilih Kategori</option>
-                            <?php 
-                            $kategori_result->data_seek(0);
-                            while ($kategori = $kategori_result->fetch_assoc()): ?>
-                                <option value="<?php echo $kategori['id_kategori']; ?>">
-                                    <?php echo $kategori['nama_kategori']; ?>
-                                </option>
-                            <?php endwhile; ?>
-                        </select>
-                    </div>
-                </div>
-                <div class="flex justify-end space-x-3 mt-8">
-                    <button type="button" onclick="closeAddModal()" 
-                            class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
-                        Batal
-                    </button>
-                    <button type="submit" name="tambah_menu" 
-                            class="px-4 py-2 text-white bg-pale-taupe rounded-lg hover:bg-amber-800 transition-colors">
-                        <i class="fas fa-plus mr-2"></i>
-                        Tambah Menu
-                    </button>
-                </div>
-            </form>
         </div>
     </div>
 
-    <div id="editModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
-        <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-xl bg-white">
-            <div class="flex items-center justify-between mb-6">
-                <h3 class="text-lg font-semibold text-gray-800">Edit Menu</h3>
-                <button onclick="closeEditModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
-                    <i class="fas fa-times text-lg"></i>
-                </button>
+    <!-- Modal Edit Menu -->
+    <div id="editModal" class="modal fixed inset-0 z-50 hidden overflow-y-auto">
+        <div class="modal-overlay absolute w-full h-full bg-gray-900 opacity-50"></div>
+        <div class="modal-container bg-white w-11/12 md:max-w-md mx-auto rounded shadow-lg z-50 overflow-y-auto my-10">
+            <div class="modal-content py-4 text-left px-6">
+                <div class="flex justify-between items-center pb-3">
+                    <p class="text-2xl font-bold text-gray-800">Edit Menu</p>
+                    <button onclick="toggleModal('editModal')" class="modal-close cursor-pointer z-50">
+                        <i class="fas fa-times text-gray-500 hover:text-gray-700"></i>
+                    </button>
+                </div>
+                <form method="POST" enctype="multipart/form-data" onsubmit="return validateEditForm()">
+                    <input type="hidden" name="id_menu" id="edit_id_menu">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nama Menu *</label>
+                            <input type="text" name="nama_menu" id="edit_nama_menu" required 
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-pale-taupe transition-colors"
+                                   placeholder="Contoh: Nasi Goreng Spesial">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Kategori *</label>
+                            <select name="id_kategori" id="edit_id_kategori" required 
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-pale-taupe transition-colors">
+                                <option value="">Pilih Kategori</option>
+                                <?php 
+                                $kategori_result->data_seek(0);
+                                while ($kategori = $kategori_result->fetch_assoc()): ?>
+                                    <option value="<?php echo $kategori['id_kategori']; ?>">
+                                        <?php echo htmlspecialchars($kategori['nama_kategori']); ?>
+                                    </option>
+                                <?php endwhile; ?>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Harga (Rp) *</label>
+                            <input type="number" name="harga" id="edit_harga" required min="1000" step="500"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-pale-taupe transition-colors"
+                                   placeholder="Contoh: 25000">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Foto Menu Saat Ini</label>
+                            <div id="current_photo_container" class="mb-2 hidden">
+                                <img id="current_photo_img" src="" alt="Foto saat ini" class="w-24 h-24 object-cover rounded-lg border border-gray-300">
+                            </div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Ganti Foto (Opsional)</label>
+                            <input type="file" name="foto" accept="image/*" 
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-pale-taupe transition-colors text-sm">
+                            <p class="text-xs text-gray-500 mt-1">Biarkan kosong jika tidak ingin mengubah foto.</p>
+                        </div>
+                    </div>
+                    <div class="flex justify-end pt-6 space-x-3">
+                        <button type="button" onclick="toggleModal('editModal')" 
+                                class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+                            Batal
+                        </button>
+                        <button type="submit" name="edit_menu" 
+                                class="btn-primary px-4 py-2 rounded-lg font-semibold">
+                            Update
+                        </button>
+                    </div>
+                </form>
             </div>
-            <form method="POST" onsubmit="return validateEditForm()">
-                <input type="hidden" name="id_menu" id="edit_id_menu">
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Nama Menu *</label>
-                        <input type="text" name="nama_menu" id="edit_nama_menu" required 
-                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors"
-                               placeholder="Contoh: Nasi Goreng Spesial">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Harga (Rp) *</label>
-                        <input type="number" name="harga" id="edit_harga" required min="1000" step="500"
-                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors"
-                               placeholder="Contoh: 25000">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Kategori *</label>
-                        <select name="id_kategori" id="edit_id_kategori" required 
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors">
-                            <option value="">Pilih Kategori</option>
-                            <?php 
-                            $kategori_result->data_seek(0);
-                            while ($kategori = $kategori_result->fetch_assoc()): ?>
-                                <option value="<?php echo $kategori['id_kategori']; ?>">
-                                    <?php echo $kategori['nama_kategori']; ?>
-                                </option>
-                            <?php endwhile; ?>
-                        </select>
-                    </div>
-                </div>
-                <div class="flex justify-end space-x-3 mt-8">
-                    <button type="button" onclick="closeEditModal()" 
-                            class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
-                        Batal
-                    </button>
-                    <button type="submit" name="edit_menu" 
-                            class="px-4 py-2 text-white bg-pale-taupe rounded-lg hover:bg-amber-800 transition-colors">
-                        <i class="fas fa-save mr-2"></i>
-                        Simpan Perubahan
-                    </button>
-                </div>
-            </form>
         </div>
     </div>
 
     <script>
-        function openAddModal() {
-            document.getElementById('addModal').classList.remove('hidden');
-            document.getElementById('addModal').classList.add('flex');
+        function toggleModal(modalID) {
+            const modal = document.getElementById(modalID);
+            modal.classList.toggle('hidden');
+            modal.classList.toggle('flex');
+            document.body.classList.toggle('modal-active');
         }
 
-        function closeAddModal() {
-            document.getElementById('addModal').classList.add('hidden');
-            document.getElementById('addModal').classList.remove('flex');
-        }
-
-        function openEditModal(id, nama, harga, kategori) {
-            document.getElementById('edit_id_menu').value = id;
-            document.getElementById('edit_nama_menu').value = nama;
-            document.getElementById('edit_harga').value = harga;
-            document.getElementById('edit_id_kategori').value = kategori;
+        function openEditModal(data) {
+            document.getElementById('edit_id_menu').value = data.id_menu;
+            document.getElementById('edit_nama_menu').value = data.nama_menu;
+            document.getElementById('edit_harga').value = data.harga;
+            document.getElementById('edit_id_kategori').value = data.id_kategori;
             
-            document.getElementById('editModal').classList.remove('hidden');
-            document.getElementById('editModal').classList.add('flex');
+            const photoContainer = document.getElementById('current_photo_container');
+            const photoImg = document.getElementById('current_photo_img');
+            
+            if (data.foto) {
+                photoImg.src = '<?= $upload_dir ?>' + data.foto;
+                photoContainer.classList.remove('hidden');
+            } else {
+                photoContainer.classList.add('hidden');
+            }
+            
+            toggleModal('editModal');
         }
 
-        function closeEditModal() {
-            document.getElementById('editModal').classList.add('hidden');
-            document.getElementById('editModal').classList.remove('flex');
-        }
-
-        function hapusMenu(id) {
-            if (confirm('Apakah Anda yakin ingin menghapus menu ini?\nTindakan ini tidak dapat dibatalkan.')) {
+        function hapusMenu(id, nama) {
+            if (confirm('Apakah Anda yakin ingin menghapus menu "' + nama + '"?\nTindakan ini tidak dapat dibatalkan dan akan menghapus foto terkait.')) {
                 window.location.href = 'manajemen_menu.php?hapus=' + id;
             }
         }
@@ -553,7 +578,7 @@ $kategori_result->data_seek(0);
             const kategori = document.querySelector('#addModal select[name="id_kategori"]').value;
             
             if (!namaMenu || !harga || !kategori) {
-                alert('Semua field harus diisi!');
+                alert('Semua field wajib diisi!');
                 return false;
             }
             
@@ -571,7 +596,7 @@ $kategori_result->data_seek(0);
             const kategori = document.getElementById('edit_id_kategori').value;
             
             if (!namaMenu || !harga || !kategori) {
-                alert('Semua field harus diisi!');
+                alert('Semua field wajib diisi!');
                 return false;
             }
             
@@ -583,37 +608,31 @@ $kategori_result->data_seek(0);
             return true;
         }
 
-        window.onclick = function(event) {
-            const addModal = document.getElementById('addModal');
-            const editModal = document.getElementById('editModal');
-            
-            if (event.target === addModal) {
-                closeAddModal();
-            }
-            if (event.target === editModal) {
-                closeEditModal();
-            }
-        }
-
-        document.addEventListener('keydown', function(event) {
-            if (event.ctrlKey && event.key === 'n') {
-                event.preventDefault();
-                openAddModal();
-            }
-            if (event.key === 'Escape') {
-                closeAddModal();
-                closeEditModal();
-            }
+        document.querySelectorAll('.modal-overlay').forEach(function(overlay) {
+            overlay.addEventListener('click', function() {
+                toggleModal(overlay.closest('.modal').id);
+            });
         });
 
+        document.onkeydown = function(evt) {
+            evt = evt || window.event;
+            var isEscape = false;
+            if ("key" in evt) {
+                isEscape = (evt.key === "Escape" || evt.key === "Esc");
+            } else {
+                isEscape = (evt.keyCode === 27);
+            }
+            if (isEscape && document.body.classList.contains('modal-active')) {
+                document.querySelectorAll('.modal.flex').forEach(function(modal) {
+                    toggleModal(modal.id);
+                });
+            }
+        };
+
+        // Auto open edit modal if edit data exists
         <?php if ($edit_data): ?>
         document.addEventListener('DOMContentLoaded', function() {
-            openEditModal(
-                <?php echo $edit_data['id_menu']; ?>,
-                '<?php echo addslashes($edit_data['nama_menu']); ?>',
-                <?php echo $edit_data['harga']; ?>,
-                <?php echo $edit_data['id_kategori']; ?>
-            );
+            openEditModal(<?= json_encode($edit_data) ?>);
         });
         <?php endif; ?>
     </script>

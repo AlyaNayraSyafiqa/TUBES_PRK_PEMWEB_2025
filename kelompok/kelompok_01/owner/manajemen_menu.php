@@ -1,32 +1,18 @@
 <?php
-session_start();
 include 'config.php';
 
+// Ambil data kategori untuk dropdown
 $kategori_result = $conn->query("SELECT * FROM kategori_menu");
 
-$total_result = $conn->query("SELECT COUNT(*) as total FROM menu");
-$total_row = $total_result->fetch_assoc();
-$total_menu = $total_row['total'];
-
-$makanan_result = $conn->query("SELECT COUNT(*) as total FROM menu WHERE id_kategori = 1");
-$makanan_row = $makanan_result->fetch_assoc();
-$makanan_count = $makanan_row['total'];
-
-$minuman_result = $conn->query("SELECT COUNT(*) as total FROM menu WHERE id_kategori = 2");
-$minuman_row = $minuman_result->fetch_assoc();
-$minuman_count = $minuman_row['total'];
-
-$dessert_result = $conn->query("SELECT COUNT(*) as total FROM menu WHERE id_kategori = 3");
-$dessert_row = $dessert_result->fetch_assoc();
-$dessert_count = $dessert_row['total'];
-
-$menu_display_result = $conn->query("
+// Ambil data menu
+$menu_result = $conn->query("
     SELECT m.*, k.nama_kategori 
     FROM menu m 
     LEFT JOIN kategori_menu k ON m.id_kategori = k.id_kategori 
     ORDER BY m.id_menu
 ");
 
+// Tambah menu baru
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['tambah_menu'])) {
     $nama_menu = $_POST['nama_menu'];
     $harga = $_POST['harga'];
@@ -44,73 +30,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['tambah_menu'])) {
     exit();
 }
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_menu'])) {
-    $id_menu = $_POST['id_menu'];
-    $nama_menu = $_POST['nama_menu'];
-    $harga = $_POST['harga'];
-    $id_kategori = $_POST['id_kategori'];
-    
-    $stmt = $conn->prepare("UPDATE menu SET nama_menu = ?, harga = ?, id_kategori = ? WHERE id_menu = ?");
-    $stmt->bind_param("siii", $nama_menu, $harga, $id_kategori, $id_menu);
-    
-    if ($stmt->execute()) {
-        $success = "Menu berhasil diupdate!";
-    } else {
-        $error = "Gagal mengupdate menu!";
-    }
-    header("Location: manajemen_menu.php");
-    exit();
-}
-
+// Hapus menu
 if (isset($_GET['hapus'])) {
-    $id_menu = intval($_GET['hapus']);
-
-    $stmt_del = $conn->prepare("DELETE FROM menu WHERE id_menu = ?");
-    $stmt_del->bind_param("i", $id_menu);
-    $stmt_del->execute();
-
-    $max_result = $conn->query("SELECT MAX(id_menu) as max_id FROM menu");
-    $max_row = $max_result->fetch_assoc();
-    $next_ai = ($max_row && $max_row['max_id']) ? (intval($max_row['max_id']) + 1) : 1;
-    $conn->query("ALTER TABLE menu AUTO_INCREMENT = " . $next_ai);
-
+    $id_menu = $_GET['hapus'];
+    $conn->query("DELETE FROM menu WHERE id_menu = $id_menu");
     header("Location: manajemen_menu.php");
     exit();
 }
 
-$edit_data = null;
-if (isset($_GET['edit'])) {
-    $id_edit = $_GET['edit'];
-    $edit_result = $conn->query("
-        SELECT m.*, k.nama_kategori 
-        FROM menu m 
-        LEFT JOIN kategori_menu k ON m.id_kategori = k.id_kategori 
-        WHERE m.id_menu = $id_edit
-    ");
-    if ($edit_result->num_rows > 0) {
-        $edit_data = $edit_result->fetch_assoc();
-    }
-}
+// Hitung statistik berdasarkan data aktual
+$total_menu = $menu_result->num_rows;
+$makanan_count = $conn->query("SELECT COUNT(*) as total FROM menu WHERE id_kategori = 1")->fetch_assoc()['total'];
+$minuman_count = $conn->query("SELECT COUNT(*) as total FROM menu WHERE id_kategori = 2")->fetch_assoc()['total'];
+$dessert_count = $conn->query("SELECT COUNT(*) as total FROM menu WHERE id_kategori = 3")->fetch_assoc()['total'];
 
-$owner_result = $conn->query("SELECT * FROM users WHERE role = 'owner' LIMIT 1");
-$owner = $owner_result->fetch_assoc();
-
-if (!$owner) {
-    $user_result = $conn->query("SELECT * FROM users WHERE role = 'admin' LIMIT 1");
-    $owner = $user_result->fetch_assoc();
-}
-
-if (!$owner) {
-    $user_result = $conn->query("SELECT * FROM users LIMIT 1");
-    $owner = $user_result->fetch_assoc();
-}
-
-$foto_display = 'https://ui-avatars.com/api/?name=' . urlencode($owner['nama'] ?? 'Owner') . '&background=B7A087&color=fff';
-if (!empty($owner['profile_picture']) && file_exists($owner['profile_picture'])) {
-    $foto_display = $owner['profile_picture'];
-}
-
-$kategori_result->data_seek(0);
+// Reset pointer untuk loop menu
+$menu_result->data_seek(0);
 ?>
 
 <!DOCTYPE html>
@@ -164,44 +99,46 @@ $kategori_result->data_seek(0);
 </head>
 <body class="bg-antique-white">
     <!-- Sidebar -->
-    <div class="fixed inset-y-0 left-0 w-64 sidebar shadow-xl">
-        <div class="flex items-center justify-center h-16 bg-pale-taupe">
-            <div class="text-white">
-                <h1 class="text-xl font-bold">EasyResto</h1>
-                <p class="text-xs text-white opacity-90">Owner Panel</p>
+    <div class="fixed inset-y-0 left-0 w-64 sidebar shadow-xl flex flex-col justify-between">
+        <div>
+            <div class="flex items-center justify-center h-16 bg-pale-taupe">
+                <div class="text-white">
+                    <h1 class="text-xl font-bold">EasyResto</h1>
+                    <p class="text-xs text-white opacity-90">Owner Panel</p>
+                </div>
             </div>
+            
+            <nav class="mt-8">
+                <a href="dashboard.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-chart-line w-6"></i>
+                    <span class="mx-3 font-medium">Dashboard</span>
+                </a>
+                <a href="laporan_penjualan.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-file-invoice-dollar w-6"></i>
+                    <span class="mx-3 font-medium">Laporan Penjualan</span>
+                </a>
+                <a href="manajemen_menu.php" class="flex items-center px-6 py-3 text-white bg-pale-taupe bg-opacity-40 border-l-4 border-white">
+                    <i class="fas fa-utensils w-6"></i>
+                    <span class="mx-3 font-medium">Manajemen Menu</span>
+                </a>
+                <a href="manajemen_pengguna.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-users w-6"></i>
+                    <span class="mx-3 font-medium">Manajemen Pengguna</span>
+                </a>
+                <a href="profil.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-user-cog w-6"></i>
+                    <span class="mx-3 font-medium">Profil</span>
+                </a>
+            </nav>
         </div>
         
-        <nav class="mt-8">
-            <a href="dashboard.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
-                <i class="fas fa-chart-line w-6"></i>
-                <span class="mx-3 font-medium">Dashboard</span>
-            </a>
-            <a href="laporan_penjualan.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
-                <i class="fas fa-file-invoice-dollar w-6"></i>
-                <span class="mx-3 font-medium">Laporan Penjualan</span>
-            </a>
-            <a href="manajemen_menu.php" class="flex items-center px-6 py-3 text-white bg-pale-taupe bg-opacity-40 border-l-4 border-white">
-                <i class="fas fa-utensils w-6"></i>
-                <span class="mx-3 font-medium">Manajemen Menu</span>
-            </a>
-            <a href="manajemen_pengguna.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
-                <i class="fas fa-users w-6"></i>
-                <span class="mx-3 font-medium">Manajemen Pengguna</span>
-            </a>
-            <a href="profil.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
-                <i class="fas fa-user-cog w-6"></i>
-                <span class="mx-3 font-medium">Profil</span>
-            </a>
-        </nav>
-
-        <div class="absolute bottom-0 w-full p-4 bg-pale-taupe bg-opacity-80">
+        <div class="p-4 bg-pale-taupe bg-opacity-80">
             <div class="flex items-center gap-3">
-                <img src="<?= $foto_display ?>" class="w-10 h-10 rounded-full border-2 border-white object-cover">
-                <div class="overflow-hidden text-white">
-                    <p class="font-bold text-sm truncate leading-tight"><?= htmlspecialchars($owner['nama'] ?? 'Owner') ?></p>
-                    <p class="text-xs opacity-90"><?= ucfirst($owner['role'] ?? 'Admin') ?></p>
-                    <a href="logout.php" class="text-xs text-red-200 hover:text-white flex items-center gap-1 mt-1 transition-colors">
+                <i class="fas fa-user-circle text-2xl text-white"></i>
+                <div class="text-white">
+                    <p class="font-bold text-sm">Owner</p>
+                    <p class="text-xs opacity-90">Administrator</p>
+                    <a href="../logout.php" class="text-xs text-red-200 hover:text-white flex items-center gap-1 mt-1 transition-colors">
                         <i class="fas fa-sign-out-alt"></i> Logout
                     </a>
                 </div>
@@ -209,34 +146,24 @@ $kategori_result->data_seek(0);
         </div>
     </div>
 
+    <!-- Main Content -->
     <div class="ml-64">
+        <!-- Header -->
         <header class="bg-white shadow-sm border-b border-pale-taupe">
             <div class="flex items-center justify-between px-8 py-4">
                 <div>
                     <h1 class="text-2xl font-bold text-gray-800">Manajemen Menu</h1>
                     <p class="text-gray-600">Kelola menu dan harga makanan</p>
                 </div>
-                <div class="flex items-center space-x-4">
-                    <div class="text-right">
-                        <p class="text-sm text-gray-600">Selamat datang</p>
-                        <p class="font-semibold text-gray-800"><?= htmlspecialchars($owner['nama'] ?? 'Owner') ?></p>
-                    </div>
-                    <a href="profil.php" class="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden border-2 border-pale-taupe">
-                        <img src="<?= $foto_display ?>" alt="Profil" class="w-full h-full object-cover">
-                    </a>
-                </div>
+                <button onclick="openAddModal()" class="flex items-center px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors">
+                    <i class="fas fa-plus mr-2"></i>
+                    Tambah Menu
+                </button>
             </div>
         </header>
 
         <main class="p-8">
-            <?php
-            $debug_total = $conn->query("SELECT COUNT(*) as total FROM menu")->fetch_assoc()['total'];
-            ?>
-            <!-- <div class="mb-4 p-4 bg-yellow-100 border border-yellow-300 rounded">
-                <p class="text-sm">DEBUG: Total menu di database: <?php echo $debug_total; ?></p>
-                <p class="text-sm">Total menu yang ditampilkan: <?php echo $total_menu; ?></p>
-            </div> -->
-
+            <!-- Stats -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                 <div class="bg-gradient-to-r from-pale-taupe to-amber-800 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-transform">
                     <div class="flex items-center justify-between">
@@ -268,7 +195,7 @@ $kategori_result->data_seek(0);
                 <div class="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-transform">
                     <div class="flex items-center justify-between">
                         <div>
-                            <p class="text-purple-100 text-sm font-medium">Menu Makanan Penutup</p>
+                            <p class="text-purple-100 text-sm font-medium">Menu Dessert</p>
                             <p class="text-2xl font-bold"><?php echo $dessert_count; ?></p>
                         </div>
                         <i class="fas fa-ice-cream text-2xl opacity-80"></i>
@@ -276,6 +203,7 @@ $kategori_result->data_seek(0);
                 </div>
             </div>
 
+            <!-- Menu Table -->
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
                     <div class="flex items-center justify-between">
@@ -283,10 +211,10 @@ $kategori_result->data_seek(0);
                             <h3 class="text-lg font-semibold text-gray-800">Daftar Menu</h3>
                             <p class="text-sm text-gray-600">Semua menu yang tersedia di restoran (Total: <?php echo $total_menu; ?> menu)</p>
                         </div>
-                        <div class="flex space-x-2">
-                            <button onclick="openAddModal()" class="flex items-center px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors">
-                                <i class="fas fa-plus mr-2"></i>
-                                Tambah Menu
+                        <div class="text-sm text-gray-600">
+                            <button onclick="exportMenu()" class="flex items-center px-3 py-1 text-sm text-green-600 hover:text-green-800 border border-green-300 rounded-lg hover:bg-green-50 transition-colors">
+                                <i class="fas fa-file-export mr-1"></i>
+                                Export
                             </button>
                         </div>
                     </div>
@@ -304,7 +232,7 @@ $kategori_result->data_seek(0);
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
                             <?php if ($total_menu > 0): ?>
-                                <?php while ($menu = $menu_display_result->fetch_assoc()): ?>
+                                <?php while ($menu = $menu_result->fetch_assoc()): ?>
                                 <tr class="hover:bg-pale-taupe hover:bg-opacity-10 transition-colors group">
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <span class="text-sm font-medium text-gray-900 bg-gray-100 px-2 py-1 rounded">#<?php echo $menu['id_menu']; ?></span>
@@ -315,30 +243,11 @@ $kategori_result->data_seek(0);
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <span class="inline-flex px-3 py-1 text-xs font-semibold rounded-full 
-                                            <?php 
-                                            $kategori_nama = $menu['nama_kategori'];
-                                            if ($kategori_nama == 'Makanan') {
-                                                echo 'bg-green-100 text-green-800 border border-green-200';
-                                            } elseif ($kategori_nama == 'Minuman') {
-                                                echo 'bg-blue-100 text-blue-800 border border-blue-200';
-                                            } elseif ($kategori_nama == 'Makanan Penutup') {
-                                                echo 'bg-purple-100 text-purple-800 border border-purple-200';
-                                            } else {
-                                                echo 'bg-gray-100 text-gray-800 border border-gray-200';
-                                            }
-                                            ?>">
+                                            <?php echo $menu['nama_kategori'] == 'Makanan' ? 'bg-green-100 text-green-800 border border-green-200' : 
+                                                  ($menu['nama_kategori'] == 'Minuman' ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-purple-100 text-purple-800 border border-purple-200'); ?>">
                                             <i class="fas 
-                                                <?php 
-                                                if ($kategori_nama == 'Makanan') {
-                                                    echo 'fa-utensils';
-                                                } elseif ($kategori_nama == 'Minuman') {
-                                                    echo 'fa-glass-whiskey';
-                                                } elseif ($kategori_nama == 'Makanan Penutup') {
-                                                    echo 'fa-ice-cream';
-                                                } else {
-                                                    echo 'fa-question';
-                                                }
-                                                ?> 
+                                                <?php echo $menu['nama_kategori'] == 'Makanan' ? 'fa-utensils' : 
+                                                      ($menu['nama_kategori'] == 'Minuman' ? 'fa-glass-whiskey' : 'fa-ice-cream'); ?> 
                                                 mr-1"></i>
                                             <?php echo $menu['nama_kategori']; ?>
                                         </span>
@@ -349,12 +258,7 @@ $kategori_result->data_seek(0);
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                        <button onclick="openEditModal(
-                                            <?php echo $menu['id_menu']; ?>, 
-                                            '<?php echo addslashes($menu['nama_menu']); ?>',
-                                            <?php echo $menu['harga']; ?>,
-                                            <?php echo $menu['id_kategori']; ?>
-                                        )" 
+                                        <button onclick="editMenu(<?php echo $menu['id_menu']; ?>)" 
                                                 class="text-blue-600 hover:text-blue-900 mr-4 transition-colors">
                                             <i class="fas fa-edit mr-1"></i>
                                             Edit
@@ -395,10 +299,7 @@ $kategori_result->data_seek(0);
                         <div class="text-gray-700">
                             Rata-rata harga: <span class="font-semibold">
                                 Rp <?php 
-                                // Query terpisah untuk rata-rata harga
-                                $avg_result = $conn->query("SELECT AVG(harga) as avg_price FROM menu");
-                                $avg_row = $avg_result->fetch_assoc();
-                                $avg_price = $avg_row['avg_price'] ?? 0;
+                                $avg_price = $conn->query("SELECT AVG(harga) as avg_price FROM menu")->fetch_assoc()['avg_price'];
                                 echo number_format($avg_price, 0, ',', '.');
                                 ?>
                             </span>
@@ -410,6 +311,7 @@ $kategori_result->data_seek(0);
         </main>
     </div>
 
+    <!-- Add Menu Modal -->
     <div id="addModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
         <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-xl bg-white">
             <div class="flex items-center justify-between mb-6">
@@ -418,7 +320,7 @@ $kategori_result->data_seek(0);
                     <i class="fas fa-times text-lg"></i>
                 </button>
             </div>
-            <form method="POST" onsubmit="return validateAddForm()">
+            <form method="POST" onsubmit="return validateForm()">
                 <div class="space-y-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Nama Menu *</label>
@@ -462,59 +364,6 @@ $kategori_result->data_seek(0);
         </div>
     </div>
 
-    <div id="editModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
-        <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-xl bg-white">
-            <div class="flex items-center justify-between mb-6">
-                <h3 class="text-lg font-semibold text-gray-800">Edit Menu</h3>
-                <button onclick="closeEditModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
-                    <i class="fas fa-times text-lg"></i>
-                </button>
-            </div>
-            <form method="POST" onsubmit="return validateEditForm()">
-                <input type="hidden" name="id_menu" id="edit_id_menu">
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Nama Menu *</label>
-                        <input type="text" name="nama_menu" id="edit_nama_menu" required 
-                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors"
-                               placeholder="Contoh: Nasi Goreng Spesial">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Harga (Rp) *</label>
-                        <input type="number" name="harga" id="edit_harga" required min="1000" step="500"
-                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors"
-                               placeholder="Contoh: 25000">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Kategori *</label>
-                        <select name="id_kategori" id="edit_id_kategori" required 
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors">
-                            <option value="">Pilih Kategori</option>
-                            <?php 
-                            $kategori_result->data_seek(0);
-                            while ($kategori = $kategori_result->fetch_assoc()): ?>
-                                <option value="<?php echo $kategori['id_kategori']; ?>">
-                                    <?php echo $kategori['nama_kategori']; ?>
-                                </option>
-                            <?php endwhile; ?>
-                        </select>
-                    </div>
-                </div>
-                <div class="flex justify-end space-x-3 mt-8">
-                    <button type="button" onclick="closeEditModal()" 
-                            class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
-                        Batal
-                    </button>
-                    <button type="submit" name="edit_menu" 
-                            class="px-4 py-2 text-white bg-pale-taupe rounded-lg hover:bg-amber-800 transition-colors">
-                        <i class="fas fa-save mr-2"></i>
-                        Simpan Perubahan
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
     <script>
         function openAddModal() {
             document.getElementById('addModal').classList.remove('hidden');
@@ -526,19 +375,11 @@ $kategori_result->data_seek(0);
             document.getElementById('addModal').classList.remove('flex');
         }
 
-        function openEditModal(id, nama, harga, kategori) {
-            document.getElementById('edit_id_menu').value = id;
-            document.getElementById('edit_nama_menu').value = nama;
-            document.getElementById('edit_harga').value = harga;
-            document.getElementById('edit_id_kategori').value = kategori;
-            
-            document.getElementById('editModal').classList.remove('hidden');
-            document.getElementById('editModal').classList.add('flex');
-        }
-
-        function closeEditModal() {
-            document.getElementById('editModal').classList.add('hidden');
-            document.getElementById('editModal').classList.remove('flex');
+        function editMenu(id) {
+            // Arahkan ke halaman edit atau tampilkan modal edit
+            window.location.href = 'edit_menu.php?id=' + id;
+            // Atau bisa juga dengan modal:
+            // alert('Fitur edit untuk menu ID: ' + id + ' akan diimplementasikan');
         }
 
         function hapusMenu(id) {
@@ -547,10 +388,19 @@ $kategori_result->data_seek(0);
             }
         }
 
-        function validateAddForm() {
-            const namaMenu = document.querySelector('#addModal input[name="nama_menu"]').value;
-            const harga = document.querySelector('#addModal input[name="harga"]').value;
-            const kategori = document.querySelector('#addModal select[name="id_kategori"]').value;
+        function exportMenu() {
+            const totalMenu = <?php echo $total_menu; ?>;
+            const makanan = <?php echo $makanan_count; ?>;
+            const minuman = <?php echo $minuman_count; ?>;
+            const dessert = <?php echo $dessert_count; ?>;
+            
+            alert(`Ekspor Data Menu:\n\nTotal Menu: ${totalMenu}\nMakanan: ${makanan}\nMinuman: ${minuman}\nDessert: ${dessert}\n\nData akan diexport dalam format CSV.`);
+        }
+
+        function validateForm() {
+            const namaMenu = document.querySelector('input[name="nama_menu"]').value;
+            const harga = document.querySelector('input[name="harga"]').value;
+            const kategori = document.querySelector('select[name="id_kategori"]').value;
             
             if (!namaMenu || !harga || !kategori) {
                 alert('Semua field harus diisi!');
@@ -565,57 +415,26 @@ $kategori_result->data_seek(0);
             return true;
         }
 
-        function validateEditForm() {
-            const namaMenu = document.getElementById('edit_nama_menu').value;
-            const harga = document.getElementById('edit_harga').value;
-            const kategori = document.getElementById('edit_id_kategori').value;
-            
-            if (!namaMenu || !harga || !kategori) {
-                alert('Semua field harus diisi!');
-                return false;
-            }
-            
-            if (harga < 1000) {
-                alert('Harga minimal Rp 1.000');
-                return false;
-            }
-            
-            return true;
-        }
-
+        // Close modal when clicking outside
         window.onclick = function(event) {
-            const addModal = document.getElementById('addModal');
-            const editModal = document.getElementById('editModal');
-            
-            if (event.target === addModal) {
+            const modal = document.getElementById('addModal');
+            if (event.target === modal) {
                 closeAddModal();
             }
-            if (event.target === editModal) {
-                closeEditModal();
-            }
         }
 
+        // Keyboard shortcuts
         document.addEventListener('keydown', function(event) {
+            // Ctrl + N untuk tambah menu baru
             if (event.ctrlKey && event.key === 'n') {
                 event.preventDefault();
                 openAddModal();
             }
+            // Escape untuk tutup modal
             if (event.key === 'Escape') {
                 closeAddModal();
-                closeEditModal();
             }
         });
-
-        <?php if ($edit_data): ?>
-        document.addEventListener('DOMContentLoaded', function() {
-            openEditModal(
-                <?php echo $edit_data['id_menu']; ?>,
-                '<?php echo addslashes($edit_data['nama_menu']); ?>',
-                <?php echo $edit_data['harga']; ?>,
-                <?php echo $edit_data['id_kategori']; ?>
-            );
-        });
-        <?php endif; ?>
     </script>
 </body>
 </html>

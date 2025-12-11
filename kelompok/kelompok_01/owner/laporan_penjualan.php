@@ -1,10 +1,11 @@
 <?php
-session_start();
 include 'config.php';
 
+// Filter tanggal
 $start_date = $_GET['start_date'] ?? date('Y-m-01');
 $end_date = $_GET['end_date'] ?? date('Y-m-t');
 
+// Query menggunakan VIEW laporan_penjualan
 $sql = "SELECT * FROM laporan_penjualan WHERE DATE(tanggal) BETWEEN ? AND ? ORDER BY tanggal DESC";
 
 $stmt = $conn->prepare($sql);
@@ -12,6 +13,7 @@ $stmt->bind_param("ss", $start_date, $end_date);
 $stmt->execute();
 $result = $stmt->get_result();
 
+// Total summary menggunakan VIEW
 $summary_sql = "SELECT 
     SUM(subtotal) as total_subtotal,
     SUM(ppn) as total_ppn,
@@ -27,25 +29,8 @@ $stmt_summary->bind_param("ss", $start_date, $end_date);
 $stmt_summary->execute();
 $summary = $stmt_summary->get_result()->fetch_assoc();
 
+// Hitung rata-rata
 $avg_transaction = $summary['total_transaksi'] > 0 ? $summary['total_final'] / $summary['total_transaksi'] : 0;
-
-$owner_result = $conn->query("SELECT * FROM users WHERE role = 'owner' LIMIT 1");
-$owner = $owner_result->fetch_assoc();
-
-if (!$owner) {
-    $user_result = $conn->query("SELECT * FROM users WHERE role = 'admin' LIMIT 1");
-    $owner = $user_result->fetch_assoc();
-}
-
-if (!$owner) {
-    $user_result = $conn->query("SELECT * FROM users LIMIT 1");
-    $owner = $user_result->fetch_assoc();
-}
-
-$foto_display = 'https://ui-avatars.com/api/?name=' . urlencode($owner['nama'] ?? 'Owner') . '&background=B7A087&color=fff';
-if (!empty($owner['profile_picture']) && file_exists($owner['profile_picture'])) {
-    $foto_display = $owner['profile_picture'];
-}
 ?>
 
 <!DOCTYPE html>
@@ -114,44 +99,47 @@ if (!empty($owner['profile_picture']) && file_exists($owner['profile_picture']))
     </style>
 </head>
 <body class="bg-antique-white">
-    <div class="fixed inset-y-0 left-0 w-64 sidebar shadow-xl no-print">
-        <div class="flex items-center justify-center h-16 bg-pale-taupe">
-            <div class="text-white">
-                <h1 class="text-xl font-bold">EasyResto</h1>
-                <p class="text-xs text-white opacity-90">Owner Panel</p>
+    <!-- Sidebar -->
+    <div class="fixed inset-y-0 left-0 w-64 sidebar shadow-xl no-print flex flex-col justify-between">
+        <div>
+            <div class="flex items-center justify-center h-16 bg-pale-taupe">
+                <div class="text-white">
+                    <h1 class="text-xl font-bold">EasyResto</h1>
+                    <p class="text-xs text-white opacity-90">Owner Panel</p>
+                </div>
             </div>
+            
+            <nav class="mt-8">
+                <a href="dashboard.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-chart-line w-6"></i>
+                    <span class="mx-3 font-medium">Dashboard</span>
+                </a>
+                <a href="laporan_penjualan.php" class="flex items-center px-6 py-3 text-white bg-pale-taupe bg-opacity-40 border-l-4 border-white">
+                    <i class="fas fa-file-invoice-dollar w-6"></i>
+                    <span class="mx-3 font-medium">Laporan Penjualan</span>
+                </a>
+                <a href="manajemen_menu.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-utensils w-6"></i>
+                    <span class="mx-3 font-medium">Manajemen Menu</span>
+                </a>
+                <a href="manajemen_pengguna.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-users w-6"></i>
+                    <span class="mx-3 font-medium">Manajemen Pengguna</span>
+                </a>
+                <a href="profil.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-user-cog w-6"></i>
+                    <span class="mx-3 font-medium">Profil</span>
+                </a>
+            </nav>
         </div>
         
-        <nav class="mt-8">
-            <a href="dashboard.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
-                <i class="fas fa-chart-line w-6"></i>
-                <span class="mx-3 font-medium">Dashboard</span>
-            </a>
-            <a href="laporan_penjualan.php" class="flex items-center px-6 py-3 text-white bg-pale-taupe bg-opacity-40 border-l-4 border-white">
-                <i class="fas fa-file-invoice-dollar w-6"></i>
-                <span class="mx-3 font-medium">Laporan Penjualan</span>
-            </a>
-            <a href="manajemen_menu.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
-                <i class="fas fa-utensils w-6"></i>
-                <span class="mx-3 font-medium">Manajemen Menu</span>
-            </a>
-            <a href="manajemen_pengguna.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
-                <i class="fas fa-users w-6"></i>
-                <span class="mx-3 font-medium">Manajemen Pengguna</span>
-            </a>
-            <a href="profil.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
-                <i class="fas fa-user-cog w-6"></i>
-                <span class="mx-3 font-medium">Profil</span>
-            </a>
-        </nav>
-        
-        <div class="absolute bottom-0 w-full p-4 bg-pale-taupe bg-opacity-80">
+        <div class="p-4 bg-pale-taupe bg-opacity-80">
             <div class="flex items-center gap-3">
-                <img src="<?= $foto_display ?>" class="w-10 h-10 rounded-full border-2 border-white object-cover">
-                <div class="overflow-hidden text-white">
-                    <p class="font-bold text-sm truncate leading-tight"><?= htmlspecialchars($owner['nama'] ?? 'Owner') ?></p>
-                    <p class="text-xs opacity-90"><?= ucfirst($owner['role'] ?? 'Admin') ?></p>
-                    <a href="logout.php" class="text-xs text-red-200 hover:text-white flex items-center gap-1 mt-1 transition-colors">
+                <i class="fas fa-user-circle text-2xl text-white"></i>
+                <div class="text-white">
+                    <p class="font-bold text-sm">Owner</p>
+                    <p class="text-xs opacity-90">Administrator</p>
+                    <a href="../logout.php" class="text-xs text-red-200 hover:text-white flex items-center gap-1 mt-1 transition-colors">
                         <i class="fas fa-sign-out-alt"></i> Logout
                     </a>
                 </div>
@@ -159,26 +147,23 @@ if (!empty($owner['profile_picture']) && file_exists($owner['profile_picture']))
         </div>
     </div>
 
+    <!-- Main Content -->
     <div class="ml-64 no-print">
+        <!-- Header -->
         <header class="bg-white shadow-sm border-b border-pale-taupe">
             <div class="flex items-center justify-between px-8 py-4">
                 <div>
                     <h1 class="text-2xl font-bold text-gray-800">Laporan Penjualan</h1>
                     <p class="text-gray-600">Detail laporan transaksi dan penjualan</p>
                 </div>
-                <div class="flex items-center space-x-4">
-                    <div class="text-right">
-                        <p class="text-sm text-gray-600">Selamat datang</p>
-                        <p class="font-semibold text-gray-800"><?= htmlspecialchars($owner['nama'] ?? 'Owner') ?></p>
-                    </div>
-                    <a href="profil.php" class="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden border-2 border-pale-taupe">
-                        <img src="<?= $foto_display ?>" alt="Profil" class="w-full h-full object-cover">
-                    </a>
+                <div class="flex items-center space-x-3">
+                    
                 </div>
             </div>
         </header>
 
         <main class="p-8">
+            <!-- Filter Section -->
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
                 <h3 class="text-lg font-semibold text-gray-800 mb-4">Filter Laporan</h3>
                 <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -207,6 +192,7 @@ if (!empty($owner['profile_picture']) && file_exists($owner['profile_picture']))
                 </form>
             </div>
 
+            <!-- Summary Cards -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                 <div class="bg-gradient-to-r from-pale-taupe to-amber-800 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-transform">
                     <div class="flex items-center justify-between">
@@ -246,6 +232,7 @@ if (!empty($owner['profile_picture']) && file_exists($owner['profile_picture']))
                 </div>
             </div>
 
+            <!-- Report Table -->
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
                     <div class="flex items-center justify-between">
@@ -253,7 +240,8 @@ if (!empty($owner['profile_picture']) && file_exists($owner['profile_picture']))
                             <h3 class="text-lg font-semibold text-gray-800">Detail Laporan Penjualan</h3>
                             <p class="text-sm text-gray-600">Periode: <?php echo date('d M Y', strtotime($start_date)); ?> - <?php echo date('d M Y', strtotime($end_date)); ?></p>
                         </div>
-                        <div class="flex space-x-2">
+                        <div class="text-sm text-gray-600">
+                            Total Data: <span class="font-semibold"><?php echo $result->num_rows; ?></span>
                         </div>
                     </div>
                 </div>
@@ -388,6 +376,7 @@ if (!empty($owner['profile_picture']) && file_exists($owner['profile_picture']))
         </main>
     </div>
 
+    <!-- Print Header (only visible when printing) -->
     <div class="print-only">
         <div class="text-center mb-6">
             <h1 class="text-2xl font-bold">EasyResto</h1>
@@ -456,7 +445,67 @@ if (!empty($owner['profile_picture']) && file_exists($owner['profile_picture']))
     </div>
 
     <script>
+        function printReport() {
+            window.print();
+        }
+
+        function exportToExcel() {
+            // Simpan data ke session atau cookie untuk export
+            const startDate = "<?php echo $start_date; ?>";
+            const endDate = "<?php echo $end_date; ?>";
+            const totalRows = <?php echo $result->num_rows; ?>;
+            const totalTransactions = <?php echo $summary['total_transaksi'] ?? 0; ?>;
+            const totalItems = <?php echo $summary['total_item_terjual'] ?? 0; ?>;
+            const grandTotal = "Rp <?php echo number_format($summary['total_final'] ?? 0, 0, ',', '.'); ?>";
+            
+            // Membuat data untuk export
+            let csvContent = "Laporan Penjualan EasyResto\n";
+            csvContent += "Periode: " + startDate + " hingga " + endDate + "\n\n";
+            csvContent += "No,ID Transaksi,Tanggal,Nama Menu,Kategori,Jumlah,Subtotal,PPN (11%),Service (5%),Total\n";
+            
+            // Tambahkan data dari PHP (ini adalah simulasi, implementasi sebenarnya membutuhkan AJAX)
+            <?php
+            $result->data_seek(0);
+            $counter = 1;
+            while ($row = $result->fetch_assoc()): ?>
+            csvContent += "<?php echo $counter++; ?>,"
+                + "#<?php echo $row['id_transaksi']; ?>,"
+                + "<?php echo date('d/m/Y H:i', strtotime($row['tanggal'])); ?>,"
+                + "\"<?php echo addslashes($row['nama_menu']); ?>\","
+                + "<?php echo $row['nama_kategori']; ?>,"
+                + "<?php echo $row['jumlah']; ?>,"
+                + "<?php echo $row['subtotal']; ?>,"
+                + "<?php echo $row['ppn']; ?>,"
+                + "<?php echo $row['service']; ?>,"
+                + "<?php echo $row['total_permenu']; ?>\n";
+            <?php endwhile; ?>
+            
+            csvContent += "\n\n";
+            csvContent += "RANGKUMAN\n";
+            csvContent += "Total Transaksi,<?php echo $summary['total_transaksi'] ?? 0; ?>\n";
+            csvContent += "Total Item Terjual,<?php echo $summary['total_item_terjual'] ?? 0; ?>\n";
+            csvContent += "Total Subtotal,<?php echo $summary['total_subtotal'] ?? 0; ?>\n";
+            csvContent += "Total PPN,<?php echo $summary['total_ppn'] ?? 0; ?>\n";
+            csvContent += "Total Service,<?php echo $summary['total_service'] ?? 0; ?>\n";
+            csvContent += "Total Pendapatan,<?php echo $summary['total_final'] ?? 0; ?>\n";
+            
+            // Buat blob dan download
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", "laporan_penjualan_<?php echo $start_date; ?>_<?php echo $end_date; ?>.csv");
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            alert(`Data berhasil diexport ke CSV!\n\nPeriode: ${startDate} hingga ${endDate}\nTotal Data: ${totalRows} item\nTotal Transaksi: ${totalTransactions}\nTotal Item: ${totalItems}\nGrand Total: ${grandTotal}`);
+        }
+
+        // Add some interactivity
         document.addEventListener('DOMContentLoaded', function() {
+            // Add loading state to filter button
             const filterForm = document.querySelector('form');
             if (filterForm) {
                 filterForm.addEventListener('submit', function() {

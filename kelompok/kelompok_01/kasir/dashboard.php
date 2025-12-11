@@ -10,16 +10,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] != 'kasir') {
 $menus = $conn->query("SELECT * FROM menu ORDER BY id_kategori ASC, nama_menu ASC");
 $kategoris = $conn->query("SELECT * FROM kategori_menu");
 
-$id_user_active = $_SESSION['id_user'];
-$query_user = $conn->query("SELECT profile_picture, nama FROM users WHERE id_user = '$id_user_active'");
-$data_user = $query_user->fetch_assoc();
-
-$nama_user = $data_user['nama'];
-$foto_db = $data_user['profile_picture'];
-
-$foto = !empty($foto_db) && file_exists('../' . $foto_db) 
-    ? '../' . $foto_db 
-    : 'https://ui-avatars.com/api/?name=' . urlencode($nama_user);
+$foto = !empty($_SESSION['profile_picture']) ? '../'.$_SESSION['profile_picture'] : 'https://ui-avatars.com/api/?name='.urlencode($_SESSION['nama']);
 ?>
 
 <!DOCTYPE html>
@@ -66,7 +57,7 @@ $foto = !empty($foto_db) && file_exists('../' . $foto_db)
             <div class="h-16 flex items-center justify-center bg-pale-taupe">
                 <div class="text-white text-center">
                     <h1 class="text-xl font-bold">EasyResto</h1>
-                    <p class="text-xs text-white opacity-90">Role Kasir</p>
+                    <p class="text-xs text-white opacity-90">Cashier Panel</p>
                 </div>
             </div>
             
@@ -94,7 +85,7 @@ $foto = !empty($foto_db) && file_exists('../' . $foto_db)
             <div class="flex items-center gap-3">
                 <img src="<?= $foto ?>" class="w-10 h-10 rounded-full border-2 border-white object-cover">
                 <div class="overflow-hidden text-white">
-                    <p class="font-bold text-sm truncate leading-tight"><?= htmlspecialchars($nama_user) ?></p>
+                    <p class="font-bold text-sm truncate leading-tight"><?= htmlspecialchars($_SESSION['nama']) ?></p>
                     <p class="text-xs opacity-90">Role: Kasir</p>
                     <a href="../logout.php" class="text-xs text-red-200 hover:text-white flex items-center gap-1 mt-1 transition-colors">
                         <i class="fas fa-sign-out-alt"></i> Logout
@@ -105,49 +96,29 @@ $foto = !empty($foto_db) && file_exists('../' . $foto_db)
     </div>
 
     <div class="flex-1 flex flex-col h-full overflow-hidden relative">
-        
-        <header class="bg-white shadow-sm border-b border-[#E5D9C8] flex-shrink-0 px-8 py-4">
-            <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
-                
-                <div class="flex flex-col sm:flex-row gap-4 w-full sm:w-auto flex-1 mr-0 sm:mr-4">
-                    <div class="relative flex-1 group w-full">
-                        <i class="fas fa-search absolute left-4 top-3.5 text-gray-400 transition-colors"></i>
-                        <input type="text" id="searchMenu" placeholder="Cari menu makanan/minuman..." autocomplete="off"
-                               class="w-full pl-12 pr-4 py-2 rounded-lg border border-[#E5D9C8] appearance-none focus:outline-none bg-white text-gray-700 focus:border-pale-taupe transition-colors">
-                    </div>
-                    
-                    <div class="relative w-full sm:w-auto sm:min-w-[200px]">
-                        <i class="fas fa-filter absolute left-3 top-3.5 text-gray-400 z-10"></i>
-                        <select id="filterKategori" class="w-full pl-10 pr-8 py-2 rounded-lg border border-[#E5D9C8] bg-white cursor-pointer text-gray-700 font-medium appearance-none focus:border-pale-taupe transition-colors">
-                            <option value="all">Semua Kategori</option>
-                            <?php while($kat = $kategoris->fetch_assoc()): ?>
-                                <option value="<?= $kat['id_kategori'] ?>"><?= $kat['nama_kategori'] ?></option>
-                            <?php endwhile; ?>
-                        </select>
-                        <i class="fas fa-chevron-down absolute right-4 top-4 text-gray-400 text-xs pointer-events-none"></i>
-                    </div>
+        <header class="bg-white shadow-sm border-b border-pale-taupe flex-shrink-0 px-8 py-4">
+            <div class="flex flex-col sm:flex-row justify-between gap-4">
+                <div class="relative flex-1 group">
+                    <i class="fas fa-search absolute left-4 top-3.5 text-gray-400 transition-colors"></i>
+                    <input type="text" id="searchMenu" placeholder="Cari menu makanan/minuman..." autocomplete="off"
+                           class="w-full pl-12 pr-4 py-2 rounded-lg border border-[#E5D9C8] appearance-none focus:outline-none bg-white text-gray-700">
                 </div>
-
-                <div class="flex items-center gap-4 flex-shrink-0 w-full sm:w-auto justify-end">
-                    <a href="profil_kasir.php" class="flex items-center gap-3 pl-4 border-l border-gray-200 hover:bg-gray-50 p-2 rounded-lg transition-colors cursor-pointer" title="Lihat Profil">
-                        <div class="text-right hidden sm:block">
-                            <p class="text-xs text-gray-500">Selamat datang</p>
-                            <p class="font-bold text-gray-800 text-sm truncate max-w-[150px]"><?= htmlspecialchars($nama_user) ?></p>
-                        </div>
-                        <img src="<?= $foto ?>" class="w-10 h-10 rounded-full border border-gray-200 object-cover p-0.5">
-                    </a>
+                <div class="relative min-w-[200px]">
+                    <i class="fas fa-filter absolute left-3 top-3.5 text-gray-400 z-10"></i>
+                    <select id="filterKategori" class="w-full pl-10 pr-8 py-2 rounded-lg border border-[#E5D9C8] bg-white cursor-pointer text-gray-700 font-medium appearance-none">
+                        <option value="all">Semua Kategori</option>
+                        <?php while($kat = $kategoris->fetch_assoc()): ?>
+                            <option value="<?= $kat['id_kategori'] ?>"><?= $kat['nama_kategori'] ?></option>
+                        <?php endwhile; ?>
+                    </select>
+                    <i class="fas fa-chevron-down absolute right-4 top-4 text-gray-400 text-xs pointer-events-none"></i>
                 </div>
-
             </div>
         </header>
 
         <div class="flex-1 overflow-y-auto p-8 scrollbar-hide">
             <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
-                <?php while($menu = $menus->fetch_assoc()): 
-                    $gambar_path = '../uploads/menu/' . $menu['foto'];
-                    $has_image = !empty($menu['foto']) && file_exists($gambar_path);
-                    $display_img = $has_image ? $gambar_path : '';
-                ?>
+                <?php while($menu = $menus->fetch_assoc()): ?>
                 <div class="card rounded-xl p-0 overflow-hidden cursor-pointer group menu-item select-none transition-all duration-300 transform hover:-translate-y-1 hover:shadow-xl"
                      onclick="addToCart(this)"
                      data-id="<?= $menu['id_menu'] ?>"
@@ -156,14 +127,9 @@ $foto = !empty($foto_db) && file_exists('../' . $foto_db)
                      data-category="<?= $menu['id_kategori'] ?>">
                     
                     <div class="h-32 bg-gradient-to-br from-antique-white to-orange-100 flex items-center justify-center relative overflow-hidden">
-                        <?php if($has_image): ?>
-                            <img src="<?= $display_img ?>" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
-                        <?php else: ?>
-                            <i class="fas fa-utensils text-4xl text-pale-taupe/50 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500"></i>
-                        <?php endif; ?>
-
+                        <i class="fas fa-utensils text-4xl text-pale-taupe/50 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500"></i>
                         <div class="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors duration-300"></div>
-                        <div class="absolute bottom-2 right-2 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 z-10">
+                        <div class="absolute bottom-2 right-2 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
                             <i class="fas fa-plus text-pale-taupe"></i>
                         </div>
                     </div>

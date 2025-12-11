@@ -25,35 +25,14 @@ $kategori_penjualan = $conn->query("
 // Data transaksi terbaru
 $recent_transactions = $conn->query("SELECT * FROM transaksi ORDER BY tanggal DESC LIMIT 5");
 
-// Ambil data owner untuk header
-$owner_result = $conn->query("SELECT * FROM users WHERE role = 'owner' LIMIT 1");
-$owner = $owner_result->fetch_assoc();
-
-// Jika tidak ada owner, ambil admin pertama
-if (!$owner) {
-    $user_result = $conn->query("SELECT * FROM users WHERE role = 'admin' LIMIT 1");
-    $owner = $user_result->fetch_assoc();
-}
-
-// Jika masih tidak ada, ambil user pertama
-if (!$owner) {
-    $user_result = $conn->query("SELECT * FROM users LIMIT 1");
-    $owner = $user_result->fetch_assoc();
-}
+// Ambil data admin untuk header
+$admin_id = $_SESSION['id_user'];
+$admin_result = $conn->query("SELECT * FROM users WHERE id_user = $admin_id");
+$admin = $admin_result->fetch_assoc();
 
 // Path default foto profil
-$default_avatar = 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80';
-
-// Ambil foto profil dari database
-$foto_profil = !empty($owner['foto_profil']) ? $owner['foto_profil'] : $default_avatar;
-
-// Jika foto profil adalah path lokal, pastikan bisa diakses
-if ($foto_profil !== $default_avatar) {
-    // Cek apakah file ada
-    if (!file_exists($foto_profil)) {
-        $foto_profil = $default_avatar;
-    }
-}
+$default_avatar = 'https://ui-avatars.com/api/?name=' . urlencode($admin['nama'] ?? 'Admin');
+$foto_profil = !empty($admin['profile_picture']) ? '../' . $admin['profile_picture'] : $default_avatar;
 ?>
 
 <!DOCTYPE html>
@@ -61,7 +40,7 @@ if ($foto_profil !== $default_avatar) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - EasyResto Owner</title>
+    <title>Dashboard - EasyResto Admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -97,18 +76,6 @@ if ($foto_profil !== $default_avatar) {
         .btn-primary:hover {
             background-color: #8B7355;
         }
-        .btn-secondary {
-            background-color: #F7EBDF;
-            color: #8B7355;
-            border: 1px solid #B7A087;
-        }
-        .btn-secondary:hover {
-            background-color: #E5D9C8;
-        }
-        .preview-image {
-            object-fit: cover;
-            border-radius: 50%;
-        }
     </style>
 </head>
 <body class="bg-antique-white">
@@ -116,9 +83,9 @@ if ($foto_profil !== $default_avatar) {
     <div class="fixed inset-y-0 left-0 w-64 sidebar shadow-xl flex flex-col justify-between">
         <div>
             <div class="flex items-center justify-center h-16 bg-pale-taupe">
-                <div class="text-white">
+                <div class="text-white text-center">
                     <h1 class="text-xl font-bold">EasyResto</h1>
-                    <p class="text-xs text-white opacity-90">Owner Panel</p>
+                    <p class="text-xs text-white opacity-90">Admin Panel</p>
                 </div>
             </div>
             
@@ -127,17 +94,21 @@ if ($foto_profil !== $default_avatar) {
                     <i class="fas fa-chart-line w-6"></i>
                     <span class="mx-3 font-medium">Dashboard</span>
                 </a>
-                <a href="laporan_penjualan.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
-                    <i class="fas fa-file-invoice-dollar w-6"></i>
-                    <span class="mx-3 font-medium">Laporan Penjualan</span>
+                <a href="manajemen_pengguna.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-users w-6"></i>
+                    <span class="mx-3 font-medium">Manajemen Pengguna</span>
                 </a>
                 <a href="manajemen_menu.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
                     <i class="fas fa-utensils w-6"></i>
                     <span class="mx-3 font-medium">Manajemen Menu</span>
                 </a>
-                <a href="manajemen_pengguna.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
-                    <i class="fas fa-users w-6"></i>
-                    <span class="mx-3 font-medium">Manajemen Pengguna</span>
+                <a href="manajemen_transaksi.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-cash-register w-6"></i>
+                    <span class="mx-3 font-medium">Manajemen Transaksi</span>
+                </a>
+                <a href="laporan_penjualan.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-file-invoice-dollar w-6"></i>
+                    <span class="mx-3 font-medium">Laporan Penjualan</span>
                 </a>
                 <a href="profil.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
                     <i class="fas fa-user-cog w-6"></i>
@@ -148,14 +119,10 @@ if ($foto_profil !== $default_avatar) {
         
         <div class="p-4 bg-pale-taupe bg-opacity-80">
             <div class="flex items-center gap-3">
-                <?php if ($foto_profil !== $default_avatar): ?>
-                    <img src="<?php echo $foto_profil; ?>" alt="Profil" class="w-10 h-10 rounded-full object-cover border-2 border-white">
-                <?php else: ?>
-                    <i class="fas fa-user-circle text-2xl text-white"></i>
-                <?php endif; ?>
-                <div class="text-white">
-                    <p class="font-bold text-sm"><?php echo htmlspecialchars($owner['nama'] ?? 'Owner'); ?></p>
-                    <p class="text-xs opacity-90"><?php echo ucfirst($owner['role'] ?? 'Admin'); ?></p>
+                <img src="<?= $foto_profil ?>" class="w-10 h-10 rounded-full border-2 border-white object-cover">
+                <div class="overflow-hidden text-white">
+                    <p class="font-bold text-sm truncate leading-tight"><?= htmlspecialchars($_SESSION['nama']) ?></p>
+                    <p class="text-xs opacity-90">Role: Admin</p>
                     <a href="../logout.php" class="text-xs text-red-200 hover:text-white flex items-center gap-1 mt-1 transition-colors">
                         <i class="fas fa-sign-out-alt"></i> Logout
                     </a>
@@ -176,16 +143,10 @@ if ($foto_profil !== $default_avatar) {
                 <div class="flex items-center space-x-4">
                     <div class="text-right">
                         <p class="text-sm text-gray-600">Selamat datang</p>
-                        <p class="font-semibold text-gray-800"><?php echo htmlspecialchars($owner['nama'] ?? 'Pemilik Restoran'); ?></p>
+                        <p class="font-semibold text-gray-800"><?php echo htmlspecialchars($_SESSION['nama']); ?></p>
                     </div>
                     <a href="profil.php" class="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden border-2 border-pale-taupe">
-                        <?php if ($foto_profil !== $default_avatar): ?>
-                            <img src="<?php echo $foto_profil; ?>" alt="Profil" class="w-full h-full object-cover">
-                        <?php else: ?>
-                            <div class="w-full h-full bg-pale-taupe flex items-center justify-center">
-                                <i class="fas fa-user text-white"></i>
-                            </div>
-                        <?php endif; ?>
+                        <img src="<?= $foto_profil ?>" alt="Profil" class="w-full h-full object-cover">
                     </a>
                 </div>
             </div>
@@ -266,7 +227,6 @@ if ($foto_profil !== $default_avatar) {
                 <div class="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-300">
                     <div class="flex items-center justify-between mb-6">
                         <h3 class="text-lg font-semibold text-gray-800">Penjualan per Kategori</h3>
-                        
                     </div>
                     <div class="h-80">
                         <canvas id="categoryChart"></canvas>
@@ -280,7 +240,7 @@ if ($foto_profil !== $default_avatar) {
                 <div class="lg:col-span-2 bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-300">
                     <div class="flex items-center justify-between mb-6">
                         <h3 class="text-lg font-semibold text-gray-800">Transaksi Terbaru</h3>
-                        <a href="laporan_penjualan.php" class="text-sm text-pale-taupe hover:text-amber-800 font-medium flex items-center">
+                        <a href="manajemen_transaksi.php" class="text-sm text-pale-taupe hover:text-amber-800 font-medium flex items-center">
                             Lihat Semua
                             <i class="fas fa-chevron-right ml-1 text-xs"></i>
                         </a>
@@ -353,11 +313,6 @@ if ($foto_profil !== $default_avatar) {
                                 <span>Kelola Pengguna</span>
                                 <i class="fas fa-chevron-right ml-auto text-sm opacity-70"></i>
                             </a>
-                            <a href="profil.php" class="flex items-center p-3 bg-white bg-opacity-10 rounded-lg hover:bg-opacity-20 transition-all group">
-                                <i class="fas fa-cog mr-3 group-hover:scale-110 transition-transform"></i>
-                                <span>Pengaturan</span>
-                                <i class="fas fa-chevron-right ml-auto text-sm opacity-70"></i>
-                            </a>
                         </div>
                     </div>
 
@@ -400,16 +355,14 @@ if ($foto_profil !== $default_avatar) {
     </div>
 
     <script>
-        // Category Chart (Diagram Penjualan per Kategori)
         document.addEventListener('DOMContentLoaded', function() {
             const categoryCtx = document.getElementById('categoryChart').getContext('2d');
             
-            // Data untuk chart kategori
             const categoryLabels = [
                 <?php
                 $cat_labels = [];
                 $cat_data = [];
-                $kategori_penjualan->data_seek(0); // Reset pointer
+                $kategori_penjualan->data_seek(0);
                 while ($row = $kategori_penjualan->fetch_assoc()) {
                     $cat_labels[] = "'" . htmlspecialchars($row['nama_kategori']) . "'";
                     $cat_data[] = $row['total'];
@@ -471,12 +424,8 @@ if ($foto_profil !== $default_avatar) {
                                 }
                             },
                             backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                            titleFont: {
-                                size: 14
-                            },
-                            bodyFont: {
-                                size: 13
-                            }
+                            titleFont: { size: 14 },
+                            bodyFont: { size: 13 }
                         }
                     },
                     cutout: '65%',
@@ -488,34 +437,6 @@ if ($foto_profil !== $default_avatar) {
                     }
                 }
             });
-
-            // Add some interactivity
-            const cards = document.querySelectorAll('.bg-white');
-            cards.forEach(card => {
-                card.addEventListener('mouseenter', function() {
-                    this.style.transform = 'translateY(-2px)';
-                });
-                card.addEventListener('mouseleave', function() {
-                    this.style.transform = 'translateY(0)';
-                });
-            });
-            
-            // Add click effect to export button
-            const exportBtn = document.querySelector('button:has(.fa-download)');
-            if (exportBtn) {
-                exportBtn.addEventListener('click', function() {
-                    const originalText = this.innerHTML;
-                    this.innerHTML = '<i class="fas fa-check mr-1"></i>Downloaded!';
-                    this.classList.remove('bg-gray-100', 'hover:bg-gray-200');
-                    this.classList.add('bg-green-100', 'text-green-700');
-                    
-                    setTimeout(() => {
-                        this.innerHTML = originalText;
-                        this.classList.remove('bg-green-100', 'text-green-700');
-                        this.classList.add('bg-gray-100', 'hover:bg-gray-200');
-                    }, 2000);
-                });
-            }
         });
     </script>
 </body>

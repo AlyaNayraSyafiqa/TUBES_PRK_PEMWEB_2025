@@ -7,42 +7,37 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] != 'kasir') {
     exit();
 }
 
-$id_user_active = $_SESSION['id_user'];
-$query_user = $conn->query("SELECT profile_picture, nama FROM users WHERE id_user = '$id_user_active'");
-$data_user = $query_user->fetch_assoc();
+$jenis_laporan = isset($_GET['jenis']) ? $_GET['jenis'] : 'harian';
+$tanggal_input = isset($_GET['tanggal']) ? $_GET['tanggal'] : date('Y-m-d');
+$bulan_input   = isset($_GET['bulan']) ? $_GET['bulan'] : date('m');
+$tahun_input   = isset($_GET['tahun']) ? $_GET['tahun'] : date('Y');
 
-$nama_user = $data_user['nama'];
-$foto_db = $data_user['profile_picture'];
+$judul_laporan = "";
+$query_where = "";
 
-$foto = !empty($foto_db) && file_exists('../' . $foto_db) 
-    ? '../' . $foto_db 
-    : 'https://ui-avatars.com/api/?name=' . urlencode($nama_user);
+if ($jenis_laporan == 'harian') {
+    $judul_laporan = "Laporan Harian: " . date('d F Y', strtotime($tanggal_input));
+    $query_where = "DATE(t.tanggal) = '$tanggal_input'";
+} elseif ($jenis_laporan == 'bulanan') {
+    $judul_laporan = "Laporan Bulan: " . date('F', mktime(0, 0, 0, $bulan_input, 10)) . " " . $tahun_input;
+    $query_where = "MONTH(t.tanggal) = '$bulan_input' AND YEAR(t.tanggal) = '$tahun_input'";
+} elseif ($jenis_laporan == 'tahunan') {
+    $judul_laporan = "Laporan Tahun: " . $tahun_input;
+    $query_where = "YEAR(t.tanggal) = '$tahun_input'";
+}
 
-$start_date = $_GET['start_date'] ?? date('Y-m-01');
-$end_date = $_GET['end_date'] ?? date('Y-m-t');
+$sql = "
+    SELECT m.nama_menu, SUM(dt.jumlah) as total_terjual, SUM(dt.subtotal) as total_pendapatan
+    FROM detail_transaksi dt
+    JOIN transaksi t ON dt.id_transaksi = t.id_transaksi
+    JOIN menu m ON dt.id_menu = m.id_menu
+    WHERE $query_where
+    GROUP BY m.id_menu
+    ORDER BY total_terjual DESC
+";
 
-$sql = "SELECT * FROM laporan_penjualan WHERE DATE(tanggal) BETWEEN ? AND ? ORDER BY tanggal DESC";
-$stmt = $conn->prepare($sql);
-$stmt->bind_param("ss", $start_date, $end_date);
-$stmt->execute();
-$result = $stmt->get_result();
-
-$summary_sql = "SELECT 
-    SUM(subtotal) as total_subtotal,
-    SUM(ppn) as total_ppn,
-    SUM(service) as total_service,
-    SUM(total_permenu) as total_final,
-    COUNT(DISTINCT id_transaksi) as total_transaksi,
-    SUM(jumlah) as total_item_terjual
-    FROM laporan_penjualan
-    WHERE DATE(tanggal) BETWEEN ? AND ?";
-    
-$stmt_summary = $conn->prepare($summary_sql);
-$stmt_summary->bind_param("ss", $start_date, $end_date);
-$stmt_summary->execute();
-$summary = $stmt_summary->get_result()->fetch_assoc();
-
-$avg_transaction = $summary['total_transaksi'] > 0 ? $summary['total_final'] / $summary['total_transaksi'] : 0;
+$laporan = $conn->query($sql);
+$foto = !empty($_SESSION['profile_picture']) ? '../'.$_SESSION['profile_picture'] : 'https://ui-avatars.com/api/?name='.urlencode($_SESSION['nama']);
 ?>
 
 <!DOCTYPE html>
@@ -50,10 +45,9 @@ $avg_transaction = $summary['total_transaksi'] > 0 ? $summary['total_final'] / $
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Laporan Penjualan - Kasir</title>
+    <title>Laporan - EasyResto</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
     <script>
         tailwind.config = {
             theme: {
@@ -61,8 +55,7 @@ $avg_transaction = $summary['total_transaksi'] > 0 ? $summary['total_final'] / $
                     colors: {
                         'antique-white': '#F7EBDF',
                         'pale-taupe': '#B7A087',
-                        'primary': '#B7A087',
-                        'secondary': '#F7EBDF'
+                        'dark-taupe': '#8B7355',
                     }
                 }
             }
@@ -71,32 +64,23 @@ $avg_transaction = $summary['total_transaksi'] > 0 ? $summary['total_final'] / $
     <style>
         body { background-color: #F7EBDF; }
         .sidebar { background: linear-gradient(to bottom, #B7A087, #8B7355); }
-        .card { background: white; border: 1px solid #E5D9C8; }
-        .btn-primary { background-color: #B7A087; color: white; }
-        .btn-primary:hover { background-color: #8B7355; }
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-        
-        .print-only { display: none; }
-        @media print {
-            .no-print { display: none !important; }
-            .print-only { display: block !important; }
-            body { background-color: white !important; }
-            .sidebar { display: none !important; }
-            .flex-1 { margin: 0 !important; overflow: visible !important; }
-            .ml-64 { margin-left: 0 !important; }
-            table { font-size: 10px !important; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #B7A087; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #8B7355; }
+        input:focus, select:focus, button:focus {
+            outline: none !important; box-shadow: none !important; border-color: #B7A087 !important;
         }
     </style>
 </head>
-<body class="bg-antique-white flex h-screen overflow-hidden font-sans text-gray-800">
+<body class="bg-antique-white h-screen flex overflow-hidden font-sans text-gray-800">
 
-    <div class="w-64 sidebar shadow-xl flex flex-col h-full relative z-20 flex-shrink-0 no-print">
+    <div class="w-64 sidebar shadow-xl flex flex-col justify-between z-20 flex-shrink-0">
         <div>
             <div class="h-16 flex items-center justify-center bg-pale-taupe">
                 <div class="text-white text-center">
                     <h1 class="text-xl font-bold">EasyResto</h1>
-                    <p class="text-xs text-white opacity-90">Role Kasir</p>
+                    <p class="text-xs text-white opacity-90">Cashier Panel</p>
                 </div>
             </div>
             
@@ -120,17 +104,13 @@ $avg_transaction = $summary['total_transaksi'] > 0 ? $summary['total_final'] / $
             </nav>
         </div>
         
-        <div class="absolute bottom-0 w-full p-4 bg-pale-taupe bg-opacity-80">
+        <div class="p-4 bg-pale-taupe bg-opacity-80">
             <div class="flex items-center gap-3">
-                <a href="profil_kasir.php" class="shrink-0">
-                    <img src="<?= $foto ?>" class="w-10 h-10 rounded-full border-2 border-white object-cover hover:opacity-80 transition-opacity">
-                </a>
+                <img src="<?= $foto ?>" class="w-10 h-10 rounded-full border-2 border-white object-cover">
                 <div class="overflow-hidden text-white">
-                    <a href="profil_kasir.php" class="group block">
-                        <p class="font-bold text-sm truncate leading-tight group-hover:underline"><?= htmlspecialchars($nama_user) ?></p>
-                        <p class="text-xs opacity-90">Role: Kasir</p>
-                    </a>
-                    <a href="../logout.php" class="text-xs text-red-200 hover:text-white flex items-center gap-1 mt-1 transition-colors w-max">
+                    <p class="font-bold text-sm truncate leading-tight"><?= htmlspecialchars($_SESSION['nama']) ?></p>
+                    <p class="text-xs opacity-90">Role: Kasir</p>
+                    <a href="../logout.php" class="text-xs text-red-200 hover:text-white flex items-center gap-1 mt-1 transition-colors">
                         <i class="fas fa-sign-out-alt"></i> Logout
                     </a>
                 </div>
@@ -138,233 +118,139 @@ $avg_transaction = $summary['total_transaksi'] > 0 ? $summary['total_final'] / $
         </div>
     </div>
 
-    <div class="flex-1 flex flex-col h-full overflow-hidden relative">
-        <header class="bg-white shadow-sm border-b border-[#E5D9C8] flex-shrink-0 px-8 py-4 flex flex-col sm:flex-row justify-between items-center gap-4 no-print">
+    <div class="flex-1 flex flex-col h-full overflow-hidden">
+        <header class="bg-white shadow-sm border-b border-[#E5D9C8] flex-shrink-0 px-8 py-4 flex justify-between items-center">
             <div>
                 <h1 class="text-2xl font-bold text-gray-800">Laporan Penjualan</h1>
-                <p class="text-gray-500 text-sm mt-1">Ringkasan Transaksi </p>
-            </div>
-            
-            <div class="flex items-center gap-4">
-                <a href="profil_kasir.php" class="flex items-center gap-3 pl-4 border-l border-gray-200 hidden sm:flex hover:bg-gray-50 p-2 rounded-lg transition-colors cursor-pointer" title="Lihat Profil">
-                    <div class="text-right">
-                        <p class="text-xs text-gray-500">Selamat datang</p>
-                        <p class="font-bold text-gray-800 text-sm truncate max-w-[150px]"><?= htmlspecialchars($nama_user) ?></p>
-                    </div>
-                    <img src="<?= $foto ?>" class="w-10 h-10 rounded-full border border-gray-200 object-cover p-0.5">
-                </a>
+                <p class="text-gray-500 text-sm mt-1">Analisis penjualan menu (Harian/Bulanan/Tahunan)</p>
             </div>
         </header>
 
-        <main class="flex-1 overflow-y-auto p-8 scrollbar-hide">
-            
-            <div class="card rounded-xl shadow-sm p-6 mb-8 no-print">
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">Filter Laporan</h3>
-                <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-600 mb-2">Tanggal Mulai</label>
-                        <input type="date" name="start_date" value="<?= $start_date ?>" 
-                               class="w-full px-4 py-2 rounded-lg border border-[#E5D9C8] text-sm focus:border-pale-taupe transition-colors">
+        <main class="flex-1 overflow-y-auto p-8">
+            <div class="bg-white rounded-xl shadow-sm border border-[#E5D9C8] p-6 mb-8">
+                <form method="GET" class="flex flex-wrap items-end gap-5">
+                    <div class="flex-1 min-w-[200px]">
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Jenis Laporan</label>
+                        <div class="relative">
+                            <i class="fas fa-file-alt absolute left-3 top-3 text-gray-400"></i>
+                            <select name="jenis" id="jenisSelect" onchange="toggleFilter()" class="w-full pl-10 pr-4 py-2.5 rounded-lg border border-[#E5D9C8] bg-gray-50 focus:bg-white transition-all text-sm font-medium">
+                                <option value="harian" <?= $jenis_laporan == 'harian' ? 'selected' : '' ?>>Harian</option>
+                                <option value="bulanan" <?= $jenis_laporan == 'bulanan' ? 'selected' : '' ?>>Bulanan</option>
+                                <option value="tahunan" <?= $jenis_laporan == 'tahunan' ? 'selected' : '' ?>>Tahunan</option>
+                            </select>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-600 mb-2">Tanggal Akhir</label>
-                        <input type="date" name="end_date" value="<?= $end_date ?>" 
-                               class="w-full px-4 py-2 rounded-lg border border-[#E5D9C8] text-sm focus:border-pale-taupe transition-colors">
+
+                    <div id="filterHarian" class="<?= $jenis_laporan != 'harian' ? 'hidden' : '' ?> flex-1 min-w-[200px]">
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Pilih Tanggal</label>
+                        <input type="date" name="tanggal" value="<?= $tanggal_input ?>" class="w-full px-4 py-2.5 rounded-lg border border-[#E5D9C8] bg-gray-50 focus:bg-white transition-all text-sm">
                     </div>
-                    <div>
-                        <button type="submit" class="w-full btn-primary px-4 py-2 rounded-lg font-medium shadow-sm transition-transform active:scale-95 text-sm">
-                            <i class="fas fa-filter mr-2"></i> Filter Data
-                        </button>
+
+                    <div id="filterBulanan" class="<?= $jenis_laporan != 'bulanan' ? 'hidden' : '' ?> flex-1 flex gap-4 min-w-[300px]">
+                        <div class="flex-1">
+                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Bulan</label>
+                            <select name="bulan" class="w-full px-4 py-2.5 rounded-lg border border-[#E5D9C8] bg-gray-50 focus:bg-white transition-all text-sm">
+                                <?php for($i=1; $i<=12; $i++): ?>
+                                    <option value="<?= $i ?>" <?= $i == $bulan_input ? 'selected' : '' ?>><?= date('F', mktime(0,0,0,$i,10)) ?></option>
+                                <?php endfor; ?>
+                            </select>
+                        </div>
+                        <div class="w-32">
+                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Tahun</label>
+                            <input type="number" name="tahun" value="<?= $tahun_input ?>" class="w-full px-4 py-2.5 rounded-lg border border-[#E5D9C8] bg-gray-50 focus:bg-white transition-all text-sm">
+                        </div>
                     </div>
-                    <div>
-                         <a href="laporan.php" class="flex items-center justify-center w-full px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition text-sm">
-                            <i class="fas fa-redo-alt mr-2"></i> Reset
-                        </a>
+
+                    <div id="filterTahunan" class="<?= $jenis_laporan != 'tahunan' ? 'hidden' : '' ?> flex-1 min-w-[200px]">
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Tahun</label>
+                        <input type="number" name="tahun" value="<?= $tahun_input ?>" class="w-full px-4 py-2.5 rounded-lg border border-[#E5D9C8] bg-gray-50 focus:bg-white transition-all text-sm">
                     </div>
+
+                    <button type="submit" class="bg-pale-taupe hover:bg-dark-taupe text-white px-8 py-2.5 rounded-lg font-bold shadow-md hover:shadow-lg transition-all text-sm h-[42px] flex items-center">
+                        <i class="fas fa-filter mr-2"></i> Tampilkan
+                    </button>
                 </form>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 no-print">
-                <div class="bg-gradient-to-r from-pale-taupe to-amber-800 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-transform">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-white text-sm font-medium">Total Transaksi</p>
-                            <p class="text-2xl font-bold"><?php echo number_format($summary['total_transaksi'] ?? 0, 0); ?></p>
-                        </div>
-                        <i class="fas fa-shopping-cart text-2xl opacity-80"></i>
+            <div class="bg-white rounded-xl shadow-sm border border-[#E5D9C8] overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+                    <h3 class="font-bold text-gray-700"><?= $judul_laporan ?></h3>
                     </div>
-                </div>
-                <div class="bg-gradient-to-r from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-transform">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-green-100 text-sm font-medium">Item Terjual</p>
-                            <p class="text-2xl font-bold"><?php echo number_format($summary['total_item_terjual'] ?? 0, 0); ?></p>
-                        </div>
-                        <i class="fas fa-boxes text-2xl opacity-80"></i>
-                    </div>
-                </div>
-                <div class="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-transform">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-purple-100 text-sm font-medium">Rata-rata/Transaksi</p>
-                            <p class="text-2xl font-bold">Rp <?php echo number_format($avg_transaction, 0, ',', '.'); ?></p>
-                        </div>
-                        <i class="fas fa-chart-bar text-2xl opacity-80"></i>
-                    </div>
-                </div>
-                <div class="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-transform">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-orange-100 text-sm font-medium">Total Pendapatan</p>
-                            <p class="text-2xl font-bold">Rp <?php echo number_format($summary['total_final'] ?? 0, 0, ',', '.'); ?></p>
-                        </div>
-                        <i class="fas fa-money-bill-wave text-2xl opacity-80"></i>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card rounded-xl shadow-sm overflow-hidden border border-[#E5D9C8] no-print">
-                <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
-                    <h3 class="text-lg font-semibold text-gray-800">Detail Laporan Penjualan</h3>
-                    <p class="text-sm text-gray-600">Periode: <?php echo date('d M Y', strtotime($start_date)); ?> - <?php echo date('d M Y', strtotime($end_date)); ?></p>
-                </div>
+                
                 <div class="overflow-x-auto">
                     <table class="w-full whitespace-nowrap">
-                        <thead class="bg-gray-50 border-b border-[#E5D9C8]">
-                            <tr class="text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
-                                <th class="px-6 py-4">No</th>
-                                <th class="px-6 py-4">ID Transaksi</th>
-                                <th class="px-6 py-4">Tanggal</th>
-                                <th class="px-6 py-4">Menu</th>
-                                <th class="px-6 py-4">Kategori</th>
-                                <th class="px-6 py-4 text-center">Jml</th>
-                                <th class="px-6 py-4 text-right">Subtotal</th>
-                                <th class="px-6 py-4 text-right">Total</th>
+                        <thead class="bg-gray-50 text-gray-500 text-xs uppercase font-semibold tracking-wider">
+                            <tr>
+                                <th class="px-6 py-4 text-left w-16">No</th>
+                                <th class="px-6 py-4 text-left">Nama Menu</th>
+                                <th class="px-6 py-4 text-center">Jumlah Terjual</th>
+                                <th class="px-6 py-4 text-right">Total Pendapatan</th>
                             </tr>
                         </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            <?php if ($result->num_rows > 0): ?>
-                                <?php 
-                                $counter = 1;
-                                while ($row = $result->fetch_assoc()): 
-                                ?>
-                                <tr class="hover:bg-gray-50 transition-colors">
-                                    <td class="px-6 py-3 text-sm text-gray-500"><?= $counter++ ?></td>
-                                    <td class="px-6 py-3">
-                                        <span class="text-sm font-medium text-gray-900 bg-gray-100 px-2 py-1 rounded">#<?= $row['id_transaksi'] ?></span>
-                                    </td>
-                                    <td class="px-6 py-3">
-                                        <div class="text-sm text-gray-900"><?= date('d/m/Y', strtotime($row['tanggal'])) ?></div>
-                                        <div class="text-xs text-gray-500"><?= date('H:i', strtotime($row['tanggal'])) ?></div>
-                                    </td>
-                                    <td class="px-6 py-3 text-sm font-medium text-gray-900"><?= $row['nama_menu'] ?></td>
-                                    <td class="px-6 py-3">
-                                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full 
-                                            <?= $row['nama_kategori'] == 'Makanan' ? 'bg-green-100 text-green-800' : 
-                                               ($row['nama_kategori'] == 'Minuman' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800') ?>">
-                                            <?= $row['nama_kategori'] ?>
+                        <tbody class="divide-y divide-gray-100">
+                            <?php 
+                            $no = 1; 
+                            $grand_total = 0;
+                            if ($laporan->num_rows > 0): 
+                                while($row = $laporan->fetch_assoc()): 
+                                    $grand_total += $row['total_pendapatan'];
+                            ?>
+                                <tr class="hover:bg-pale-taupe/5 transition-colors">
+                                    <td class="px-6 py-4 text-gray-400 font-mono text-sm"><?= $no++ ?></td>
+                                    <td class="px-6 py-4 font-bold text-gray-700 text-sm"><?= htmlspecialchars($row['nama_menu']) ?></td>
+                                    <td class="px-6 py-4 text-center">
+                                        <span class="inline-block px-3 py-1 text-xs font-bold rounded-full bg-blue-50 text-blue-600 ring-1 ring-blue-100">
+                                            <?= $row['total_terjual'] ?> Porsi
                                         </span>
                                     </td>
-                                    <td class="px-6 py-3 text-sm text-center font-bold text-gray-700"><?= $row['jumlah'] ?></td>
-                                    <td class="px-6 py-3 text-sm text-right text-gray-600">Rp <?= number_format($row['subtotal'], 0, ',', '.') ?></td>
-                                    <td class="px-6 py-3 text-sm text-right font-bold text-pale-taupe">Rp <?= number_format($row['total_permenu'], 0, ',', '.') ?></td>
+                                    <td class="px-6 py-4 text-right font-mono text-gray-700 text-sm">
+                                        Rp <?= number_format($row['total_pendapatan'], 0, ',', '.') ?>
+                                    </td>
                                 </tr>
                                 <?php endwhile; ?>
                             <?php else: ?>
-                                <tr>
-                                    <td colspan="8" class="px-6 py-12 text-center text-gray-400">
-                                        <div class="flex flex-col items-center">
-                                            <i class="fas fa-inbox text-4xl mb-3 opacity-30"></i>
-                                            <p>Tidak ada data penjualan pada periode ini.</p>
-                                        </div>
-                                    </td>
-                                </tr>
+                                <tr><td colspan="4" class="px-6 py-12 text-center text-gray-400 italic">Tidak ada data penjualan pada periode ini.</td></tr>
                             <?php endif; ?>
                         </tbody>
+                        <?php if ($grand_total > 0): ?>
+                        <tfoot class="bg-gray-50 border-t border-gray-200">
+                            <tr>
+                                <td colspan="3" class="px-6 py-4 text-right text-sm font-bold text-gray-600 uppercase tracking-wider">Total Omset</td>
+                                <td class="px-6 py-4 text-right text-lg font-bold text-pale-taupe font-mono">Rp <?= number_format($grand_total, 0, ',', '.') ?></td>
+                            </tr>
+                        </tfoot>
+                        <?php endif; ?>
                     </table>
                 </div>
-                
-                <?php if ($result->num_rows > 0): ?>
-                <div class="px-6 py-4 border-t border-gray-200 bg-gray-50">
-                    <div class="flex flex-col md:flex-row items-center justify-end space-y-2 md:space-y-0 text-sm">
-                        <div class="flex items-center space-x-6">
-                            <div><span class="font-semibold text-gray-700">Subtotal:</span> Rp <?= number_format($summary['total_subtotal'] ?? 0, 0, ',', '.') ?></div>
-                            <div><span class="font-semibold text-gray-700">PPN:</span> Rp <?= number_format($summary['total_ppn'] ?? 0, 0, ',', '.') ?></div>
-                            <div><span class="font-semibold text-gray-700">Service:</span> Rp <?= number_format($summary['total_service'] ?? 0, 0, ',', '.') ?></div>
-                            <div class="text-lg font-bold text-green-700 ml-4">Total: Rp <?= number_format($summary['total_final'] ?? 0, 0, ',', '.') ?></div>
-                        </div>
-                    </div>
-                </div>
-                <?php endif; ?>
             </div>
+            <div class="h-10"></div>
         </main>
     </div>
 
-    <div class="print-only p-8">
-        <div class="text-center mb-6">
-            <h1 class="text-2xl font-bold uppercase">Laporan Penjualan</h1>
-            <p class="text-sm text-gray-600 mt-1">Periode: <?= date('d M Y', strtotime($start_date)) ?> - <?= date('d M Y', strtotime($end_date)) ?></p>
-            <p class="text-xs text-gray-500">Dicetak oleh: <?= $nama_user ?> pada <?= date('d/m/Y H:i') ?></p>
-        </div>
-
-        <?php if ($result->num_rows > 0): ?>
-        <table class="w-full border-collapse border border-gray-300 text-xs mb-6">
-            <thead>
-                <tr class="bg-gray-100">
-                    <th class="border p-2">No</th>
-                    <th class="border p-2">ID</th>
-                    <th class="border p-2">Tanggal</th>
-                    <th class="border p-2">Menu</th>
-                    <th class="border p-2 text-center">Jml</th>
-                    <th class="border p-2 text-right">Subtotal</th>
-                    <th class="border p-2 text-right">Total</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php $result->data_seek(0); $no=1; while($row = $result->fetch_assoc()): ?>
-                <tr>
-                    <td class="border p-2 text-center"><?= $no++ ?></td>
-                    <td class="border p-2">#<?= $row['id_transaksi'] ?></td>
-                    <td class="border p-2"><?= date('d/m H:i', strtotime($row['tanggal'])) ?></td>
-                    <td class="border p-2"><?= $row['nama_menu'] ?></td>
-                    <td class="border p-2 text-center"><?= $row['jumlah'] ?></td>
-                    <td class="border p-2 text-right"><?= number_format($row['subtotal'], 0, ',', '.') ?></td>
-                    <td class="border p-2 text-right font-bold"><?= number_format($row['total_permenu'], 0, ',', '.') ?></td>
-                </tr>
-                <?php endwhile; ?>
-            </tbody>
-            <tfoot>
-                <tr class="bg-gray-50 font-bold">
-                    <td colspan="6" class="border p-2 text-right">TOTAL PENDAPATAN</td>
-                    <td class="border p-2 text-right">Rp <?= number_format($summary['total_final'] ?? 0, 0, ',', '.') ?></td>
-                </tr>
-            </tfoot>
-        </table>
-        
-        <div class="text-xs">
-            <p class="font-bold mb-1">Rangkuman:</p>
-            <ul class="list-disc pl-5">
-                <li>Total Transaksi: <?= number_format($summary['total_transaksi'] ?? 0, 0) ?></li>
-                <li>Item Terjual: <?= number_format($summary['total_item_terjual'] ?? 0, 0) ?></li>
-                <li>Rata-rata: Rp <?= number_format($avg_transaction, 0, ',', '.') ?></li>
-            </ul>
-        </div>
-        <?php endif; ?>
-    </div>
-
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const filterForm = document.querySelector('form');
-            if (filterForm) {
-                filterForm.addEventListener('submit', function() {
-                    const submitBtn = this.querySelector('button[type="submit"]');
-                    if (submitBtn) {
-                        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Memproses...';
-                        submitBtn.disabled = true;
-                    }
-                });
+        function toggleFilter() {
+            const jenis = document.getElementById('jenisSelect').value;
+            
+            document.getElementById('filterHarian').classList.add('hidden');
+            document.getElementById('filterBulanan').classList.add('hidden');
+            document.getElementById('filterTahunan').classList.add('hidden');
+            
+            document.querySelector('#filterHarian input').setAttribute('disabled', 'true');
+            document.querySelectorAll('#filterBulanan select, #filterBulanan input').forEach(el => el.setAttribute('disabled', 'true'));
+            document.querySelector('#filterTahunan input').setAttribute('disabled', 'true');
+
+            if (jenis === 'harian') {
+                document.getElementById('filterHarian').classList.remove('hidden');
+                document.querySelector('#filterHarian input').removeAttribute('disabled');
+            } else if (jenis === 'bulanan') {
+                document.getElementById('filterBulanan').classList.remove('hidden');
+                document.querySelectorAll('#filterBulanan select, #filterBulanan input').forEach(el => el.removeAttribute('disabled'));
+            } else {
+                document.getElementById('filterTahunan').classList.remove('hidden');
+                document.querySelector('#filterTahunan input').removeAttribute('disabled');
             }
-        });
+        }
+        window.addEventListener('DOMContentLoaded', toggleFilter);
     </script>
 </body>
 </html>

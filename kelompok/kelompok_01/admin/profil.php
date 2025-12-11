@@ -1,21 +1,10 @@
 <?php
 include 'config.php';
 
-// Ambil data owner (user dengan role 'owner')
-$user_result = $conn->query("SELECT * FROM users WHERE role = 'owner' LIMIT 1");
-$owner = $user_result->fetch_assoc();
-
-// Jika tidak ada owner, ambil admin pertama
-if (!$owner) {
-    $user_result = $conn->query("SELECT * FROM users WHERE role = 'admin' LIMIT 1");
-    $owner = $user_result->fetch_assoc();
-}
-
-// Jika masih tidak ada, ambil user pertama
-if (!$owner) {
-    $user_result = $conn->query("SELECT * FROM users LIMIT 1");
-    $owner = $user_result->fetch_assoc();
-}
+// Ambil data admin berdasarkan session
+$user_id = $_SESSION['id_user'];
+$user_result = $conn->query("SELECT * FROM users WHERE id_user = $user_id LIMIT 1");
+$admin = $user_result->fetch_assoc();
 
 // Update profil jika ada data POST
 $success = '';
@@ -27,7 +16,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $nama = $_POST['nama'];
         $username = $_POST['username'];
         $phone_number = $_POST['phone_number'] ?? '';
-        $user_id = $owner['id_user'];
         
         // Cek jika username sudah digunakan oleh user lain
         $check_username = $conn->prepare("SELECT id_user FROM users WHERE username = ? AND id_user != ?");
@@ -43,9 +31,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             
             if ($stmt->execute()) {
                 $success = "Profil berhasil diperbarui!";
+                $_SESSION['nama'] = $nama;
                 // Refresh data
                 $user_result = $conn->query("SELECT * FROM users WHERE id_user = $user_id LIMIT 1");
-                $owner = $user_result->fetch_assoc();
+                $admin = $user_result->fetch_assoc();
             } else {
                 $error = "Gagal memperbarui profil!";
             }
@@ -57,10 +46,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $password_lama = $_POST['password_lama'];
         $password_baru = $_POST['password_baru'];
         $konfirmasi_password = $_POST['konfirmasi_password'];
-        $user_id = $owner['id_user'];
         
-        // Verifikasi password lama (gunakan md5 karena di database password disimpan sebagai plain text/md5)
-        if (md5($password_lama) == $owner['password'] || $password_lama == $owner['password']) {
+        if (md5($password_lama) == $admin['password'] || $password_lama == $admin['password']) {
             if ($password_baru == $konfirmasi_password) {
                 if (strlen($password_baru) >= 6) {
                     $hashed_password = md5($password_baru);
@@ -69,8 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     
                     if ($stmt->execute()) {
                         $success = "Password berhasil diubah!";
-                        // Update password di variable owner
-                        $owner['password'] = $hashed_password;
+                        $admin['password'] = $hashed_password;
                     } else {
                         $error = "Gagal mengubah password!";
                     }
@@ -88,9 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Handle upload foto profil
     if (isset($_FILES['foto_profil']) && $_FILES['foto_profil']['error'] === UPLOAD_ERR_OK) {
         $upload_dir = 'uploads/profil/';
-        $user_id = $owner['id_user'];
         
-        // Buat direktori jika belum ada
         if (!is_dir($upload_dir)) {
             mkdir($upload_dir, 0777, true);
         }
@@ -98,27 +82,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $file_name = uniqid() . '_' . basename($_FILES['foto_profil']['name']);
         $target_file = $upload_dir . $file_name;
         
-        // Validasi file
         $allowed_types = ['jpg', 'jpeg', 'png', 'gif'];
         $file_type = strtolower(pathinfo($target_file, PATHINFO_EXTENSION));
         
         if (in_array($file_type, $allowed_types)) {
-            if ($_FILES['foto_profil']['size'] <= 5 * 1024 * 1024) { // Max 5MB
+            if ($_FILES['foto_profil']['size'] <= 5 * 1024 * 1024) {
                 if (move_uploaded_file($_FILES['foto_profil']['tmp_name'], $target_file)) {
-                    // Hapus foto lama jika ada
-                    if (!empty($owner['foto_profil']) && file_exists($owner['foto_profil'])) {
-                        unlink($owner['foto_profil']);
+                    if (!empty($admin['profile_picture']) && file_exists($admin['profile_picture'])) {
+                        unlink($admin['profile_picture']);
                     }
                     
-                    // Update path foto di database
-                    $stmt = $conn->prepare("UPDATE users SET foto_profil = ? WHERE id_user = ?");
+                    $stmt = $conn->prepare("UPDATE users SET profile_picture = ? WHERE id_user = ?");
                     $stmt->bind_param("si", $target_file, $user_id);
                     
                     if ($stmt->execute()) {
                         $success = "Foto profil berhasil diupload!";
-                        // Refresh data
                         $user_result = $conn->query("SELECT * FROM users WHERE id_user = $user_id LIMIT 1");
-                        $owner = $user_result->fetch_assoc();
+                        $admin = $user_result->fetch_assoc();
                     } else {
                         $error = "Gagal menyimpan informasi foto profil!";
                     }
@@ -135,22 +115,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
     // Hapus foto profil
     if (isset($_POST['hapus_foto'])) {
-        $user_id = $owner['id_user'];
-        
-        // Hapus file dari server jika ada
-        if (!empty($owner['foto_profil']) && file_exists($owner['foto_profil'])) {
-            unlink($owner['foto_profil']);
+        if (!empty($admin['profile_picture']) && file_exists($admin['profile_picture'])) {
+            unlink($admin['profile_picture']);
         }
         
-        // Update database untuk menghapus path foto
-        $conn->query("UPDATE users SET foto_profil = NULL WHERE id_user = $user_id");
+        $conn->query("UPDATE users SET profile_picture = NULL WHERE id_user = $user_id");
         $success = "Foto profil berhasil dihapus!";
         
-        // Refresh data
         $user_result = $conn->query("SELECT * FROM users WHERE id_user = $user_id LIMIT 1");
-        $owner = $user_result->fetch_assoc();
+        $admin = $user_result->fetch_assoc();
     }
 }
+
+$foto_profil = !empty($admin['profile_picture']) ? $admin['profile_picture'] : '';
 ?>
 
 <!DOCTYPE html>
@@ -158,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Profil Owner - EasyResto</title>
+    <title>Profil Admin - EasyResto</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script>
@@ -176,128 +153,75 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     </script>
     <style>
-        .avatar-upload {
-            position: relative;
-            display: inline-block;
-        }
-        .avatar-upload:hover .avatar-overlay {
-            opacity: 1;
-        }
-        .avatar-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(183, 160, 135, 0.7);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            cursor: pointer;
-        }
-        .file-input {
-            display: none;
-        }
-        .preview-image {
-            object-fit: cover;
-            border-radius: 50%;
-        }
-        body {
-            background-color: #F7EBDF;
-        }
-        .sidebar {
-            background: linear-gradient(to bottom, #B7A087, #8B7355);
-        }
-        .card {
-            background: white;
-            border: 1px solid #E5D9C8;
-        }
-        .btn-primary {
-            background-color: #B7A087;
-            color: white;
-        }
-        .btn-primary:hover {
-            background-color: #8B7355;
-        }
-        .btn-secondary {
-            background-color: #F7EBDF;
-            color: #8B7355;
-            border: 1px solid #B7A087;
-        }
-        .btn-secondary:hover {
-            background-color: #E5D9C8;
-        }
-        .required:after {
-            content: " *";
-            color: #ef4444;
-        }
-        .no-photo {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background-color: #B7A087;
-        }
-        .no-photo i {
-            font-size: 3rem;
-            color: white;
-        }
+        .avatar-upload { position: relative; display: inline-block; }
+        .avatar-upload:hover .avatar-overlay { opacity: 1; }
+        .avatar-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(183, 160, 135, 0.7); border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s ease; cursor: pointer; }
+        .file-input { display: none; }
+        .preview-image { object-fit: cover; border-radius: 50%; }
+        body { background-color: #F7EBDF; }
+        .sidebar { background: linear-gradient(to bottom, #B7A087, #8B7355); }
+        .card { background: white; border: 1px solid #E5D9C8; }
+        .btn-primary { background-color: #B7A087; color: white; }
+        .btn-primary:hover { background-color: #8B7355; }
+        .btn-secondary { background-color: #F7EBDF; color: #8B7355; border: 1px solid #B7A087; }
+        .btn-secondary:hover { background-color: #E5D9C8; }
+        .required:after { content: " *"; color: #ef4444; }
+        .no-photo { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background-color: #B7A087; }
+        .no-photo i { font-size: 3rem; color: white; }
     </style>
 </head>
 <body class="bg-antique-white">
     <!-- Sidebar -->
-    <div class="fixed inset-y-0 left-0 w-64 sidebar shadow-xl flex flex-col justify-between">
-        <div>
-            <div class="flex items-center justify-center h-16 bg-pale-taupe">
-                <div class="text-white">
-                    <h1 class="text-xl font-bold">EasyResto</h1>
-                    <p class="text-xs text-white opacity-90">Owner Panel</p>
-                </div>
+    <div class="fixed inset-y-0 left-0 w-64 sidebar shadow-xl">
+        <div class="flex items-center justify-center h-16 bg-pale-taupe">
+            <div class="text-white">
+                <h1 class="text-xl font-bold">EasyResto</h1>
+                <p class="text-xs text-white opacity-90">Admin Panel</p>
             </div>
-            
-            <nav class="mt-8">
-                <a href="dashboard.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
-                    <i class="fas fa-chart-line w-6"></i>
-                    <span class="mx-3 font-medium">Dashboard</span>
-                </a>
-                <a href="laporan_penjualan.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
-                    <i class="fas fa-file-invoice-dollar w-6"></i>
-                    <span class="mx-3 font-medium">Laporan Penjualan</span>
-                </a>
-                <a href="manajemen_menu.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
-                    <i class="fas fa-utensils w-6"></i>
-                    <span class="mx-3 font-medium">Manajemen Menu</span>
-                </a>
-                <a href="manajemen_pengguna.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
-                    <i class="fas fa-users w-6"></i>
-                    <span class="mx-3 font-medium">Manajemen Pengguna</span>
-                </a>
-                <a href="profil.php" class="flex items-center px-6 py-3 text-white bg-pale-taupe bg-opacity-40 border-l-4 border-white">
-                    <i class="fas fa-user-cog w-6"></i>
-                    <span class="mx-3 font-medium">Profil</span>
-                </a>
-            </nav>
         </div>
         
-        <div class="p-4 bg-pale-taupe bg-opacity-80">
-            <div class="flex items-center gap-3">
-                <?php if (!empty($owner['foto_profil'])): ?>
-                    <img src="<?php echo $owner['foto_profil']; ?>" alt="Profil" class="w-10 h-10 rounded-full object-cover border-2 border-white">
-                <?php else: ?>
-                    <div class="w-10 h-10 rounded-full no-photo flex items-center justify-center">
-                        <i class="fas fa-user text-white"></i>
-                    </div>
-                <?php endif; ?>
-                <div class="text-white">
-                    <p class="font-bold text-sm"><?php echo htmlspecialchars($owner['nama'] ?? 'Owner'); ?></p>
-                    <p class="text-xs opacity-90"><?php echo ucfirst($owner['role'] ?? 'Admin'); ?></p>
-                    <a href="../logout.php" class="text-xs text-red-200 hover:text-white flex items-center gap-1 mt-1 transition-colors">
-                        <i class="fas fa-sign-out-alt"></i> Logout
-                    </a>
+        <nav class="mt-8">
+            <a href="dashboard.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                <i class="fas fa-chart-line w-6"></i>
+                <span class="mx-3 font-medium">Dashboard</span>
+            </a>
+            <a href="manajemen_pengguna.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                <i class="fas fa-users w-6"></i>
+                <span class="mx-3 font-medium">Manajemen Pengguna</span>
+            </a>
+            <a href="manajemen_menu.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                <i class="fas fa-utensils w-6"></i>
+                <span class="mx-3 font-medium">Manajemen Menu</span>
+            </a>
+            <a href="manajemen_transaksi.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                <i class="fas fa-cash-register w-6"></i>
+                <span class="mx-3 font-medium">Manajemen Transaksi</span>
+            </a>
+            <a href="laporan_penjualan.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                <i class="fas fa-file-invoice-dollar w-6"></i>
+                <span class="mx-3 font-medium">Laporan Penjualan</span>
+            </a>
+            <a href="profil.php" class="flex items-center px-6 py-3 text-white bg-pale-taupe bg-opacity-40 border-l-4 border-white">
+                <i class="fas fa-user-cog w-6"></i>
+                <span class="mx-3 font-medium">Profil</span>
+            </a>
+        </nav>
+        
+        <div class="absolute bottom-0 w-full p-4 bg-pale-taupe bg-opacity-80">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <?php if (!empty($admin['profile_picture'])): ?>
+                        <img src="<?php echo $admin['profile_picture']; ?>" alt="Profil" class="w-8 h-8 rounded-full object-cover">
+                    <?php else: ?>
+                        <div class="w-8 h-8 rounded-full no-photo">
+                            <i class="fas fa-user text-white" style="font-size: 1rem;"></i>
+                        </div>
+                    <?php endif; ?>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-white"><?php echo htmlspecialchars($admin['nama'] ?? 'Admin'); ?></p>
+                    <p class="text-xs text-white opacity-90">Admin</p>
+                    <a href="../logout.php" class="text-xs text-red-200 hover:text-white"><i class="fas fa-sign-out-alt"></i> Logout</a>
                 </div>
             </div>
         </div>
@@ -309,17 +233,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <header class="bg-white shadow-sm border-b border-pale-taupe">
             <div class="flex items-center justify-between px-8 py-4">
                 <div>
-                    <h1 class="text-2xl font-bold text-gray-800">Profil <?php echo ucfirst($owner['role'] ?? 'Owner'); ?></h1>
+                    <h1 class="text-2xl font-bold text-gray-800">Profil Admin</h1>
                     <p class="text-gray-600">Kelola informasi akun dan pengaturan</p>
                 </div>
                 <div class="flex items-center space-x-4">
                     <div class="text-right">
                         <p class="text-sm text-gray-600">Selamat datang</p>
-                        <p class="font-semibold text-gray-800"><?php echo htmlspecialchars($owner['nama'] ?? 'Owner'); ?></p>
+                        <p class="font-semibold text-gray-800"><?php echo htmlspecialchars($admin['nama'] ?? 'Admin'); ?></p>
                     </div>
                     <a href="profil.php" class="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden border-2 border-pale-taupe">
-                        <?php if (!empty($owner['foto_profil'])): ?>
-                            <img src="<?php echo $owner['foto_profil']; ?>" alt="Profil" class="w-full h-full object-cover">
+                        <?php if (!empty($admin['profile_picture'])): ?>
+                            <img src="<?php echo $admin['profile_picture']; ?>" alt="Profil" class="w-full h-full object-cover">
                         <?php else: ?>
                             <div class="w-full h-full bg-pale-taupe flex items-center justify-center">
                                 <i class="fas fa-user text-white"></i>
@@ -361,10 +285,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <div class="flex flex-col md:flex-row items-center space-y-6 md:space-y-0 md:space-x-8">
                             <div class="avatar-upload">
                                 <div class="w-32 h-32 rounded-full overflow-hidden border-4 border-white shadow-lg">
-                                    <?php if (!empty($owner['foto_profil'])): ?>
-                                        <img id="previewAvatar" src="<?php echo $owner['foto_profil']; ?>" 
-                                             alt="Foto Profil" 
-                                             class="preview-image w-full h-full">
+                                    <?php if (!empty($admin['profile_picture'])): ?>
+                                        <img id="previewAvatar" src="<?php echo $admin['profile_picture']; ?>" alt="Foto Profil" class="preview-image w-full h-full">
                                     <?php else: ?>
                                         <div id="noPhotoPreview" class="no-photo w-full h-full">
                                             <i class="fas fa-user"></i>
@@ -383,21 +305,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                 <form method="POST" enctype="multipart/form-data" id="fotoForm" class="space-y-4">
                                     <input type="file" id="fileInput" name="foto_profil" accept="image/*" class="file-input" onchange="previewImage(this)">
                                     <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-                                        <button type="button" onclick="document.getElementById('fileInput').click()" 
-                                                class="btn-secondary px-4 py-2 rounded-lg font-medium flex items-center justify-center">
-                                            <i class="fas fa-upload mr-2"></i>
-                                            Pilih Foto
+                                        <button type="button" onclick="document.getElementById('fileInput').click()" class="btn-secondary px-4 py-2 rounded-lg font-medium flex items-center justify-center">
+                                            <i class="fas fa-upload mr-2"></i>Pilih Foto
                                         </button>
-                                        <button type="submit" name="upload_foto"
-                                                class="btn-primary px-4 py-2 rounded-lg font-medium flex items-center justify-center">
-                                            <i class="fas fa-save mr-2"></i>
-                                            Upload Foto
+                                        <button type="submit" name="upload_foto" class="btn-primary px-4 py-2 rounded-lg font-medium flex items-center justify-center">
+                                            <i class="fas fa-save mr-2"></i>Upload Foto
                                         </button>
-                                        <?php if (!empty($owner['foto_profil'])): ?>
-                                        <button type="submit" name="hapus_foto"
-                                                class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center justify-center">
-                                            <i class="fas fa-trash mr-2"></i>
-                                            Hapus Foto
+                                        <?php if (!empty($admin['profile_picture'])): ?>
+                                        <button type="submit" name="hapus_foto" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center justify-center">
+                                            <i class="fas fa-trash mr-2"></i>Hapus Foto
                                         </button>
                                         <?php endif; ?>
                                     </div>
@@ -412,8 +328,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <div class="flex items-center justify-between mb-6">
                             <h3 class="text-lg font-semibold text-gray-800">Informasi Profil</h3>
                             <span class="px-3 py-1 bg-pale-taupe bg-opacity-20 text-gray-700 text-xs font-medium rounded-full">
-                                <i class="fas fa-crown mr-1"></i>
-                                <?php echo ucfirst($owner['role'] ?? 'Owner'); ?>
+                                <i class="fas fa-user-shield mr-1"></i>Admin
                             </span>
                         </div>
                         
@@ -421,45 +336,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-2 required">Nama Lengkap</label>
-                                    <input type="text" name="nama" value="<?php echo htmlspecialchars($owner['nama'] ?? ''); ?>" 
-                                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors"
-                                           required>
+                                    <input type="text" name="nama" value="<?php echo htmlspecialchars($admin['nama'] ?? ''); ?>" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors" required>
                                 </div>
                                 
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-2 required">Username</label>
-                                    <input type="text" name="username" value="<?php echo htmlspecialchars($owner['username'] ?? ''); ?>" 
-                                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors"
-                                           required>
+                                    <input type="text" name="username" value="<?php echo htmlspecialchars($admin['username'] ?? ''); ?>" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors" required>
                                 </div>
                                 
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-2 required">Nomor Telepon</label>
-                                    <input type="tel" name="phone_number" value="<?php echo htmlspecialchars($owner['phone_number'] ?? ''); ?>" 
-                                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors"
-                                           placeholder="+62 xxx xxx xxx" required>
+                                    <input type="tel" name="phone_number" value="<?php echo htmlspecialchars($admin['phone_number'] ?? ''); ?>" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors" placeholder="+62 xxx xxx xxx" required>
                                 </div>
                                 
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Role</label>
-                                    <input type="text" value="<?php echo ucfirst($owner['role'] ?? 'Owner'); ?>" 
-                                           class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
-                                           disabled readonly>
+                                    <input type="text" value="Admin" class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-500" disabled readonly>
                                 </div>
                                 
                                 <div class="md:col-span-2">
                                     <label class="block text-sm font-medium text-gray-700 mb-2">User ID</label>
-                                    <input type="text" value="#<?php echo $owner['id_user'] ?? 'N/A'; ?>" 
-                                           class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
-                                           disabled readonly>
+                                    <input type="text" value="#<?php echo $admin['id_user'] ?? 'N/A'; ?>" class="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-500" disabled readonly>
                                 </div>
                             </div>
                             
                             <div class="mt-6 pt-6 border-t border-gray-200">
-                                <button type="submit" name="update_profil" 
-                                        class="btn-primary px-6 py-3 rounded-lg font-medium">
-                                    <i class="fas fa-save mr-2"></i>
-                                    Simpan Perubahan
+                                <button type="submit" name="update_profil" class="btn-primary px-6 py-3 rounded-lg font-medium">
+                                    <i class="fas fa-save mr-2"></i>Simpan Perubahan
                                 </button>
                             </div>
                         </form>
@@ -473,31 +376,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <div class="space-y-4">
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-2 required">Password Lama</label>
-                                    <input type="password" name="password_lama" 
-                                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors"
-                                           placeholder="Masukkan password lama" required>
+                                    <input type="password" name="password_lama" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors" placeholder="Masukkan password lama" required>
                                 </div>
                                 
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-2 required">Password Baru</label>
-                                    <input type="password" name="password_baru" 
-                                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors"
-                                           placeholder="Minimal 6 karakter" required>
+                                    <input type="password" name="password_baru" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors" placeholder="Minimal 6 karakter" required>
                                 </div>
                                 
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-2 required">Konfirmasi Password Baru</label>
-                                    <input type="password" name="konfirmasi_password" 
-                                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors"
-                                           placeholder="Konfirmasi password baru" required>
+                                    <input type="password" name="konfirmasi_password" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors" placeholder="Konfirmasi password baru" required>
                                 </div>
                             </div>
                             
                             <div class="mt-6 pt-6 border-t border-gray-200">
-                                <button type="submit" name="update_password" 
-                                        class="btn-primary px-6 py-3 rounded-lg font-medium">
-                                    <i class="fas fa-key mr-2"></i>
-                                    Ubah Password
+                                <button type="submit" name="update_password" class="btn-primary px-6 py-3 rounded-lg font-medium">
+                                    <i class="fas fa-key mr-2"></i>Ubah Password
                                 </button>
                             </div>
                         </form>
@@ -510,36 +405,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                         <div class="text-center">
                             <div class="w-20 h-20 rounded-full overflow-hidden border-4 border-white shadow-lg mx-auto mb-4">
-                                <?php if (!empty($owner['foto_profil'])): ?>
-                                    <img src="<?php echo $owner['foto_profil']; ?>" 
-                                         alt="Foto Profil" 
-                                         class="preview-image w-full h-full">
+                                <?php if (!empty($admin['profile_picture'])): ?>
+                                    <img src="<?php echo $admin['profile_picture']; ?>" alt="Foto Profil" class="preview-image w-full h-full">
                                 <?php else: ?>
                                     <div class="no-photo w-full h-full">
                                         <i class="fas fa-user"></i>
                                     </div>
                                 <?php endif; ?>
                             </div>
-                            <h3 class="text-lg font-semibold text-gray-800"><?php echo htmlspecialchars($owner['nama'] ?? 'Owner'); ?></h3>
-                            <p class="text-gray-600 mb-2"><?php echo ucfirst($owner['role'] ?? 'Admin'); ?> Restoran</p>
+                            <h3 class="text-lg font-semibold text-gray-800"><?php echo htmlspecialchars($admin['nama'] ?? 'Admin'); ?></h3>
+                            <p class="text-gray-600 mb-2">Admin Restoran</p>
                             <span class="inline-flex items-center px-3 py-1 bg-pale-taupe bg-opacity-20 text-gray-700 text-sm font-medium rounded-full">
-                                <i class="fas fa-crown mr-1"></i>
-                                <?php echo ucfirst($owner['role'] ?? 'Owner'); ?> Account
+                                <i class="fas fa-user-shield mr-1"></i>Admin Account
                             </span>
                         </div>
                         
                         <div class="mt-6 space-y-3">
                             <div class="flex items-center justify-between py-2 border-b border-gray-100">
                                 <span class="text-gray-600">Username</span>
-                                <span id="username-display" class="font-medium"><?php echo htmlspecialchars($owner['username'] ?? '-'); ?></span>
+                                <span id="username-display" class="font-medium"><?php echo htmlspecialchars($admin['username'] ?? '-'); ?></span>
                             </div>
                             <div class="flex items-center justify-between py-2 border-b border-gray-100">
                                 <span class="text-gray-600">Telepon</span>
-                                <span id="phone-display" class="font-medium"><?php echo !empty($owner['phone_number']) ? htmlspecialchars($owner['phone_number']) : 'Belum diatur'; ?></span>
+                                <span id="phone-display" class="font-medium"><?php echo !empty($admin['phone_number']) ? htmlspecialchars($admin['phone_number']) : 'Belum diatur'; ?></span>
                             </div>
                             <div class="flex items-center justify-between py-2 border-b border-gray-100">
                                 <span class="text-gray-600">User ID</span>
-                                <span id="userid-display" class="font-medium">#<?php echo $owner['id_user'] ?? '-'; ?></span>
+                                <span id="userid-display" class="font-medium">#<?php echo $admin['id_user'] ?? '-'; ?></span>
                             </div>
                             <div class="flex items-center justify-between py-2">
                                 <span class="text-gray-600">Status</span>
@@ -550,14 +442,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <div class="mt-6 pt-6 border-t border-gray-200">
                             <h4 class="text-sm font-medium text-gray-700 mb-3">Informasi Akun</h4>
                             <div class="space-y-2">
-                                <p class="text-sm text-gray-600">
-                                    <i class="fas fa-calendar-alt mr-2"></i>
-                                    Terdaftar sejak: <?php echo date('d M Y'); ?>
-                                </p>
-                                <p class="text-sm text-gray-600">
-                                    <i class="fas fa-user-tag mr-2"></i>
-                                    Hak akses: <?php echo ucfirst($owner['role'] ?? 'Owner'); ?>
-                                </p>
+                                <p class="text-sm text-gray-600"><i class="fas fa-calendar-alt mr-2"></i>Terdaftar: <?php echo date('d M Y'); ?></p>
+                                <p class="text-sm text-gray-600"><i class="fas fa-user-tag mr-2"></i>Hak akses: Admin</p>
                             </div>
                         </div>
                     </div>
@@ -624,7 +510,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </div>
 
     <script>
-        // Preview image sebelum upload
         function previewImage(input) {
             if (input.files && input.files[0]) {
                 const reader = new FileReader();
@@ -637,7 +522,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         }
 
-        // Password match validation
         document.addEventListener('DOMContentLoaded', function() {
             const passwordInput = document.querySelector('input[name="password_baru"]');
             const confirmInput = document.querySelector('input[name="konfirmasi_password"]');
@@ -663,7 +547,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         });
 
-        // Form loading state
         const forms = document.querySelectorAll('form');
         forms.forEach(form => {
             form.addEventListener('submit', function(e) {
@@ -671,8 +554,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if (submitBtn) {
                     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Memproses...';
                     submitBtn.disabled = true;
-                    
-                    // Auto enable button setelah 3 detik (fallback)
                     setTimeout(() => {
                         submitBtn.disabled = false;
                         submitBtn.innerHTML = '<i class="fas fa-save mr-2"></i>Simpan Perubahan';
@@ -681,7 +562,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             });
         });
 
-        // Confirm before deleting photo
         const hapusFotoBtn = document.querySelector('button[name="hapus_foto"]');
         if (hapusFotoBtn) {
             hapusFotoBtn.addEventListener('click', function(e) {
@@ -691,7 +571,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             });
         }
 
-        // Update profil summary in real-time
         document.addEventListener('DOMContentLoaded', function() {
             const namaInput = document.querySelector('input[name="nama"]');
             const usernameInput = document.querySelector('input[name="username"]');
@@ -699,7 +578,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             
             if (namaInput) {
                 namaInput.addEventListener('input', function() {
-                    document.querySelector('.text-center h3').textContent = this.value || 'Owner';
+                    document.querySelector('.text-center h3').textContent = this.value || 'Admin';
                 });
             }
             

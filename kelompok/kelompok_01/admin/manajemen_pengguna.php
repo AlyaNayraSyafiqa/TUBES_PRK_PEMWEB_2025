@@ -21,8 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['tambah_user'])) {
     $nama = $_POST['nama'];
     $phone_number = $_POST['phone_number'] ?? NULL;
     
-    // Enkripsi password (sederhana - bisa diganti dengan password_hash() untuk keamanan lebih)
-    $hashed_password = md5($password); // Gunakan password_hash() di production
+    $hashed_password = md5($password);
     
     $stmt = $conn->prepare("INSERT INTO users (username, password, role, nama, phone_number) VALUES (?, ?, ?, ?, ?)");
     $stmt->bind_param("sssss", $username, $hashed_password, $role, $nama, $phone_number);
@@ -39,7 +38,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['tambah_user'])) {
 // Hapus pengguna
 if (isset($_GET['hapus'])) {
     $id_user = $_GET['hapus'];
-    // Cek apakah user adalah owner (tidak boleh dihapus)
     $check_user = $conn->query("SELECT role FROM users WHERE id_user = $id_user")->fetch_assoc();
     if ($check_user['role'] != 'owner') {
         $conn->query("DELETE FROM users WHERE id_user = $id_user");
@@ -47,6 +45,12 @@ if (isset($_GET['hapus'])) {
     header("Location: manajemen_pengguna.php");
     exit();
 }
+
+// Ambil data admin untuk sidebar
+$admin_id = $_SESSION['id_user'];
+$admin = $conn->query("SELECT * FROM users WHERE id_user = $admin_id")->fetch_assoc();
+$default_avatar = 'https://ui-avatars.com/api/?name=' . urlencode($admin['nama'] ?? 'Admin');
+$foto_profil = !empty($admin['profile_picture']) ? '../' . $admin['profile_picture'] : $default_avatar;
 ?>
 
 <!DOCTYPE html>
@@ -54,7 +58,7 @@ if (isset($_GET['hapus'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manajemen Pengguna - EasyResto Owner</title>
+    <title>Manajemen Pengguna - EasyResto Admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script>
@@ -72,23 +76,11 @@ if (isset($_GET['hapus'])) {
         }
     </script>
     <style>
-        body {
-            background-color: #F7EBDF;
-        }
-        .sidebar {
-            background: linear-gradient(to bottom, #B7A087, #8B7355);
-        }
-        .card {
-            background: white;
-            border: 1px solid #E5D9C8;
-        }
-        .btn-primary {
-            background-color: #B7A087;
-            color: white;
-        }
-        .btn-primary:hover {
-            background-color: #8B7355;
-        }
+        body { background-color: #F7EBDF; }
+        .sidebar { background: linear-gradient(to bottom, #B7A087, #8B7355); }
+        .card { background: white; border: 1px solid #E5D9C8; }
+        .btn-primary { background-color: #B7A087; color: white; }
+        .btn-primary:hover { background-color: #8B7355; }
     </style>
 </head>
 <body class="bg-antique-white">
@@ -96,9 +88,9 @@ if (isset($_GET['hapus'])) {
     <div class="fixed inset-y-0 left-0 w-64 sidebar shadow-xl flex flex-col justify-between">
         <div>
             <div class="flex items-center justify-center h-16 bg-pale-taupe">
-                <div class="text-white">
+                <div class="text-white text-center">
                     <h1 class="text-xl font-bold">EasyResto</h1>
-                    <p class="text-xs text-white opacity-90">Owner Panel</p>
+                    <p class="text-xs text-white opacity-90">Admin Panel</p>
                 </div>
             </div>
             
@@ -107,17 +99,21 @@ if (isset($_GET['hapus'])) {
                     <i class="fas fa-chart-line w-6"></i>
                     <span class="mx-3 font-medium">Dashboard</span>
                 </a>
-                <a href="laporan_penjualan.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
-                    <i class="fas fa-file-invoice-dollar w-6"></i>
-                    <span class="mx-3 font-medium">Laporan Penjualan</span>
+                <a href="manajemen_pengguna.php" class="flex items-center px-6 py-3 text-white bg-pale-taupe bg-opacity-40 border-l-4 border-white">
+                    <i class="fas fa-users w-6"></i>
+                    <span class="mx-3 font-medium">Manajemen Pengguna</span>
                 </a>
                 <a href="manajemen_menu.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
                     <i class="fas fa-utensils w-6"></i>
                     <span class="mx-3 font-medium">Manajemen Menu</span>
                 </a>
-                <a href="manajemen_pengguna.php" class="flex items-center px-6 py-3 text-white bg-pale-taupe bg-opacity-40 border-l-4 border-white">
-                    <i class="fas fa-users w-6"></i>
-                    <span class="mx-3 font-medium">Manajemen Pengguna</span>
+                <a href="manajemen_transaksi.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-cash-register w-6"></i>
+                    <span class="mx-3 font-medium">Manajemen Transaksi</span>
+                </a>
+                <a href="laporan_penjualan.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
+                    <i class="fas fa-file-invoice-dollar w-6"></i>
+                    <span class="mx-3 font-medium">Laporan Penjualan</span>
                 </a>
                 <a href="profil.php" class="flex items-center px-6 py-3 text-white hover:bg-pale-taupe hover:bg-opacity-30 transition-colors">
                     <i class="fas fa-user-cog w-6"></i>
@@ -128,10 +124,10 @@ if (isset($_GET['hapus'])) {
         
         <div class="p-4 bg-pale-taupe bg-opacity-80">
             <div class="flex items-center gap-3">
-                <i class="fas fa-user-circle text-2xl text-white"></i>
-                <div class="text-white">
-                    <p class="font-bold text-sm">Owner</p>
-                    <p class="text-xs opacity-90">Administrator</p>
+                <img src="<?= $foto_profil ?>" class="w-10 h-10 rounded-full border-2 border-white object-cover">
+                <div class="overflow-hidden text-white">
+                    <p class="font-bold text-sm truncate leading-tight"><?= htmlspecialchars($_SESSION['nama']) ?></p>
+                    <p class="text-xs opacity-90">Role: Admin</p>
                     <a href="../logout.php" class="text-xs text-red-200 hover:text-white flex items-center gap-1 mt-1 transition-colors">
                         <i class="fas fa-sign-out-alt"></i> Logout
                     </a>
@@ -205,12 +201,6 @@ if (isset($_GET['hapus'])) {
                             <h3 class="text-lg font-semibold text-gray-800">Daftar Pengguna</h3>
                             <p class="text-sm text-gray-600">Semua pengguna yang memiliki akses ke sistem (Total: <?php echo $total_users; ?> pengguna)</p>
                         </div>
-                        <div class="text-sm text-gray-600">
-                            <button onclick="exportUsers()" class="flex items-center px-3 py-1 text-sm text-green-600 hover:text-green-800 border border-green-300 rounded-lg hover:bg-green-50 transition-colors">
-                                <i class="fas fa-file-export mr-1"></i>
-                                Export
-                            </button>
-                        </div>
                     </div>
                 </div>
                 <div class="overflow-x-auto">
@@ -246,7 +236,6 @@ if (isset($_GET['hapus'])) {
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="text-sm text-gray-900 font-medium"><?php echo $user['username']; ?></div>
-                                        <div class="text-xs text-gray-500">Terdaftar sejak: <?php echo date('d/m/Y', strtotime($user['created_at'] ?? 'now')); ?></div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <?php
@@ -263,27 +252,17 @@ if (isset($_GET['hapus'])) {
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm text-gray-900">
-                                            <?php echo $user['phone_number'] ?: '-'; ?>
-                                        </div>
+                                        <div class="text-sm text-gray-900"><?php echo $user['phone_number'] ?: '-'; ?></div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <span class="inline-flex px-3 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 border border-green-200">
-                                            <i class="fas fa-check mr-1"></i>
-                                            Aktif
+                                            <i class="fas fa-check mr-1"></i>Aktif
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                        <button onclick="editUser(<?php echo $user['id_user']; ?>)" 
-                                                class="text-blue-600 hover:text-blue-900 mr-4 transition-colors">
-                                            <i class="fas fa-edit mr-1"></i>
-                                            Edit
-                                        </button>
                                         <?php if ($user['role'] != 'owner'): ?>
-                                        <button onclick="hapusUser(<?php echo $user['id_user']; ?>)" 
-                                                class="text-red-600 hover:text-red-900 transition-colors">
-                                            <i class="fas fa-trash mr-1"></i>
-                                            Hapus
+                                        <button onclick="hapusUser(<?php echo $user['id_user']; ?>)" class="text-red-600 hover:text-red-900 transition-colors">
+                                            <i class="fas fa-trash mr-1"></i>Hapus
                                         </button>
                                         <?php endif; ?>
                                     </td>
@@ -296,10 +275,6 @@ if (isset($_GET['hapus'])) {
                                             <i class="fas fa-users text-4xl text-gray-400 mb-4"></i>
                                             <h3 class="text-lg font-medium text-gray-900 mb-2">Belum ada pengguna</h3>
                                             <p class="text-gray-600 mb-4">Tambahkan pengguna pertama Anda untuk memulai.</p>
-                                            <button onclick="openAddModal()" class="flex items-center px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors">
-                                                <i class="fas fa-user-plus mr-2"></i>
-                                                Tambah Pengguna Pertama
-                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -307,29 +282,6 @@ if (isset($_GET['hapus'])) {
                         </tbody>
                     </table>
                 </div>
-                
-                <?php if ($total_users > 0): ?>
-                <div class="px-6 py-4 border-t border-gray-200 bg-gray-50">
-                    <div class="flex items-center justify-between text-sm text-gray-600">
-                        <div>
-                            Menampilkan <span class="font-semibold"><?php echo $total_users; ?></span> pengguna
-                        </div>
-                        <div class="flex items-center space-x-4">
-                            <div class="flex items-center space-x-2">
-                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800 border border-yellow-200">
-                                    Owner: <?php echo $owner_count; ?>
-                                </span>
-                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 border border-green-200">
-                                    Admin: <?php echo $admin_count; ?>
-                                </span>
-                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800 border border-purple-200">
-                                    Kasir: <?php echo $kasir_count; ?>
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <?php endif; ?>
             </div>
         </main>
     </div>
@@ -343,36 +295,27 @@ if (isset($_GET['hapus'])) {
                     <i class="fas fa-times text-lg"></i>
                 </button>
             </div>
-            <form method="POST" onsubmit="return validateUserForm()">
+            <form method="POST">
                 <div class="space-y-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Nama Lengkap *</label>
-                        <input type="text" name="nama" required 
-                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors"
-                               placeholder="Contoh: John Doe">
+                        <input type="text" name="nama" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors" placeholder="Contoh: John Doe">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Username *</label>
-                        <input type="text" name="username" required 
-                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors"
-                               placeholder="Contoh: johndoe">
+                        <input type="text" name="username" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors" placeholder="Contoh: johndoe">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Password *</label>
-                        <input type="password" name="password" required minlength="6"
-                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors"
-                               placeholder="Minimal 6 karakter">
+                        <input type="password" name="password" required minlength="6" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors" placeholder="Minimal 6 karakter">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Nomor Telepon</label>
-                        <input type="tel" name="phone_number" 
-                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors"
-                               placeholder="Contoh: 081234567890">
+                        <input type="tel" name="phone_number" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors" placeholder="Contoh: 081234567890">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Role *</label>
-                        <select name="role" required 
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors">
+                        <select name="role" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pale-taupe focus:border-pale-taupe transition-colors">
                             <option value="">Pilih Role</option>
                             <option value="admin">Admin</option>
                             <option value="kasir">Kasir</option>
@@ -381,14 +324,9 @@ if (isset($_GET['hapus'])) {
                     </div>
                 </div>
                 <div class="flex justify-end space-x-3 mt-8">
-                    <button type="button" onclick="closeAddModal()" 
-                            class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
-                        Batal
-                    </button>
-                    <button type="submit" name="tambah_user" 
-                            class="px-4 py-2 text-white bg-pale-taupe rounded-lg hover:bg-amber-800 transition-colors">
-                        <i class="fas fa-user-plus mr-2"></i>
-                        Tambah Pengguna
+                    <button type="button" onclick="closeAddModal()" class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">Batal</button>
+                    <button type="submit" name="tambah_user" class="px-4 py-2 text-white bg-pale-taupe rounded-lg hover:bg-amber-800 transition-colors">
+                        <i class="fas fa-user-plus mr-2"></i>Tambah Pengguna
                     </button>
                 </div>
             </form>
@@ -406,51 +344,12 @@ if (isset($_GET['hapus'])) {
             document.getElementById('addModal').classList.remove('flex');
         }
 
-        function editUser(id) {
-            // Arahkan ke halaman edit atau tampilkan modal edit
-            window.location.href = 'edit_user.php?id=' + id;
-        }
-
         function hapusUser(id) {
             if (confirm('Apakah Anda yakin ingin menghapus pengguna ini?\nTindakan ini tidak dapat dibatalkan.')) {
                 window.location.href = 'manajemen_pengguna.php?hapus=' + id;
             }
         }
 
-        function exportUsers() {
-            const totalUsers = <?php echo $total_users; ?>;
-            const owners = <?php echo $owner_count; ?>;
-            const admins = <?php echo $admin_count; ?>;
-            const kasirs = <?php echo $kasir_count; ?>;
-            
-            alert(`Ekspor Data Pengguna:\n\nTotal Pengguna: ${totalUsers}\nOwner: ${owners}\nAdmin: ${admins}\nKasir: ${kasirs}\n\nData akan diexport dalam format CSV.`);
-        }
-
-        function validateUserForm() {
-            const nama = document.querySelector('input[name="nama"]').value;
-            const username = document.querySelector('input[name="username"]').value;
-            const password = document.querySelector('input[name="password"]').value;
-            const role = document.querySelector('select[name="role"]').value;
-            
-            if (!nama || !username || !password || !role) {
-                alert('Semua field wajib (kecuali telepon) harus diisi!');
-                return false;
-            }
-            
-            if (password.length < 6) {
-                alert('Password minimal 6 karakter!');
-                return false;
-            }
-            
-            if (username.length < 3) {
-                alert('Username minimal 3 karakter!');
-                return false;
-            }
-            
-            return true;
-        }
-
-        // Close modal when clicking outside
         window.onclick = function(event) {
             const modal = document.getElementById('addModal');
             if (event.target === modal) {
@@ -458,14 +357,7 @@ if (isset($_GET['hapus'])) {
             }
         }
 
-        // Keyboard shortcuts
         document.addEventListener('keydown', function(event) {
-            // Ctrl + U untuk tambah user baru
-            if (event.ctrlKey && event.key === 'u') {
-                event.preventDefault();
-                openAddModal();
-            }
-            // Escape untuk tutup modal
             if (event.key === 'Escape') {
                 closeAddModal();
             }

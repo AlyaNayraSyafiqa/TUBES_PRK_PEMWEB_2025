@@ -2,7 +2,6 @@
 session_start();
 include '../config.php';
 
-// Cek session dan role
 if (!isset($_SESSION['id_user'])) {
     header("Location: ../login.php");
     exit();
@@ -10,13 +9,11 @@ if (!isset($_SESSION['id_user'])) {
 
 $user_id = $_SESSION['id_user'];
 
-// Ambil data admin berdasarkan session
 $stmt = $conn->prepare("SELECT * FROM users WHERE id_user = ?");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $admin = $stmt->get_result()->fetch_assoc();
 
-// Cek role, jika bukan admin redirect ke halaman yang sesuai
 if ($admin['role'] != 'admin') {
     header("Location: ../index.php");
     exit();
@@ -133,7 +130,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
     
-    // Hapus foto profil
     if (isset($_POST['hapus_foto'])) {
         if (!empty($admin['profile_picture']) && file_exists($admin['profile_picture'])) {
             unlink($admin['profile_picture']);
@@ -147,7 +143,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-// Foto display
 $foto_display = 'https://ui-avatars.com/api/?name=' . urlencode($admin['nama'] ?? 'Admin') . '&background=B7A087&color=fff';
 if (!empty($admin['profile_picture']) && file_exists($admin['profile_picture'])) {
     $foto_display = $admin['profile_picture'];
@@ -489,12 +484,10 @@ if (!empty($admin['profile_picture']) && file_exists($admin['profile_picture']))
                 confirmInput.addEventListener('input', checkPasswordMatch);
             }
 
-
-            
-            const logoutLink = document.querySelector('a[href="../logout.php"]');
-            if (logoutLink) {
-                logoutLink.addEventListener('click', function(e) {
-                    if (!confirm('Apakah Anda yakin ingin keluar dari sistem?')) {
+            const hapusFotoBtn = document.querySelector('button[name="hapus_foto"]');
+            if (hapusFotoBtn) {
+                hapusFotoBtn.addEventListener('click', function(e) {
+                    if (!confirm('Apakah Anda yakin ingin menghapus foto profil?\nFoto akan dihapus permanen.')) {
                         e.preventDefault();
                     }
                 });

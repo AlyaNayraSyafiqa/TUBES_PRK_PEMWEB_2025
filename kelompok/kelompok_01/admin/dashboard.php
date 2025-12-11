@@ -38,8 +38,8 @@ $stmt->execute();
 $admin = $stmt->get_result()->fetch_assoc();
 
 $foto_display = 'https://ui-avatars.com/api/?name=' . urlencode($admin['nama'] ?? 'Admin') . '&background=B7A087&color=fff';
-if (!empty($admin['profile_picture']) && file_exists('../' . $admin['profile_picture'])) {
-    $foto_display = '../' . $admin['profile_picture']; 
+if (!empty($admin['profile_picture']) && file_exists($admin['profile_picture'])) {
+    $foto_display = $admin['profile_picture']; 
 }
 ?>
 
@@ -79,7 +79,7 @@ if (!empty($admin['profile_picture']) && file_exists('../' . $admin['profile_pic
             <div class="h-16 flex items-center justify-center bg-pale-taupe">
                 <div class="text-white text-center">
                     <h1 class="text-xl font-bold">EasyResto</h1>
-                    <p class="text-xs text-white opacity-90">Role Admin</p>
+                    <p class="text-xs text-white opacity-90">Admin Panel</p>
                 </div>
             </div>
             

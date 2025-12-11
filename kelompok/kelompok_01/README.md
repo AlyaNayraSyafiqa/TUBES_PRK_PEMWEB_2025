@@ -83,6 +83,9 @@ Jika ingin menjalankan di `localhost` (XAMPP/Laragon):
     `http://localhost/TUBES/TUBES_PRK_PEMWEB_2025/kelompok/kelompok_01/src` jika pakai folder tambahan TUBES (bisa lebih rapih), kalo tidak pakai folder TUBES tidak perlu di masukan.
 
 ## Tampilan
+![Login](https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/login.png)
+![Register](https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/register.png)
+
 ### Kasir
 ![Kasir - Cetak Struk](https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/cetakstrukkasir.png)
 ![Kasir - Dashboard](https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/dashboardkasir.png)

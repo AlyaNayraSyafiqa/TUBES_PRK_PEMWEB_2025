@@ -41,8 +41,9 @@ Dibangun menggunakan teknologi web standar untuk memastikan performa yang ringan
 
 * **Bahasa:** Native PHP 8.3 (Backend Logic)
 * **Database:** MySQL (HeidiSQL) 
-* **Frontend:** HTML, CSS (Tailwind), JavaScript, AJAX (tanpa reload) dan pakai https://ui-avatars.com/api/?name= (agar kalo belum masukin foto, muncul inisial nama)
+* **Frontend:** HTML5, CSS3 (Tailwind), JavaScript, AJAX (tanpa reload) dan pakai https://ui-avatars.com/api/?name= (agar kalo belum masukin foto, muncul inisial nama)
 * **ERD:** draw.io 
+
 -----
 
 ## Alur Sistem (Workflow)
@@ -82,26 +83,25 @@ Jika ingin menjalankan di `localhost` (XAMPP/Laragon):
     `http://localhost/TUBES/TUBES_PRK_PEMWEB_2025/kelompok/kelompok_01/src` jika pakai folder tambahan TUBES (bisa lebih rapih), kalo tidak pakai folder TUBES tidak perlu di masukan.
 
 ## Tampilan
-Kasir
-https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/8ba287c5586ae4b8799f13436595daeee54ddb16/kelompok/kelompok_01/tampilanweb/cetakstrukkasir.png
-https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/dashboardkasir.png
-https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/cetakstrukkasir.png
-https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/laporankasir.png
-https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/profilekasir.png
-https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/riwayatkasir.png 
+### Kasir
+![Kasir - Cetak Struk](https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/cetakstrukkasir.png)
+![Kasir - Dashboard](https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/dashboardkasir.png)
+![Kasir - Laporan](https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/laporankasir.png)
+![Kasir - Profile](https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/profilekasir.png)
+![Kasir - Riwayat](https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/riwayatkasir.png)
 
-Admin
-https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/dashboardadmin1.png
-https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/dashboardadmin2.png
-https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/menemenuadmin.png
-https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/meneuseradmin.png
-https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/profiladmin.png
-https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/menetransaksi.png
+### Admin
+![Admin - Dashboard 1](https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/dashboardadmin1.png)
+![Admin - Dashboard 2](https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/dashboardadmin2.png)
+![Admin - Menu](https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/menemenuadmin.png)
+![Admin - User](https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/meneuseradmin.png)
+![Admin - Profile](https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/profiladmin.png)
+![Admin - Transaksi](https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/menetransaksi.png)
 
-Owner 
-https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/dashboardowner1.jpg
-https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/dashboardowner2.jpg
-https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/laporanowner.jpg
-https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/menuowner.jpg 
-https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/profilowner.jpg
-https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/userowner.jpg
+### Owner
+![Owner - Dashboard 1](https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/dashboardowner1.jpg)
+![Owner - Dashboard 2](https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/dashboardowner2.jpg)
+![Owner - Laporan](https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/laporanowner.jpg)
+![Owner - Menu](https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/menuowner.jpg)
+![Owner - Profile](https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/profilowner.jpg)
+![Owner - User](https://github.com/AlyaNayraSyafiqa/TUBES_PRK_PEMWEB_2025/blob/master/kelompok/kelompok_01/tampilanweb/userowner.jpg)
